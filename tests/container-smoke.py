@@ -75,11 +75,6 @@ def signin(opener, base):
 try:
     docker("volume", "create", volume)
     assert docker("image", "inspect", image, "--format", "{{.Config.User}}") == "65532:65532"
-    docker("run", "--rm", "-v", volume + ":/data", image, "migrate")
-    docker("run", "--rm", "-v", volume + ":/data", image, "migrate")
-    interactive("admin", "create")
-    docker("run", "--rm", "-v", volume + ":/data", image, "seed-demo")
-    docker("run", "--rm", "-v", volume + ":/data", image, "seed-demo")
     vpn_args=[]
     if vpn_mode:
         docker("volume","create",control_volume)
@@ -100,6 +95,12 @@ try:
             pass
         time.sleep(.1)
     docker("exec", container, "/waypoint", "health")
+    assert "docker compose exec portal /waypoint admin create" in subprocess.check_output(["docker", "logs", container], stderr=subprocess.STDOUT, text=True), "Missing first-time bootstrap guidance"
+    docker("run", "--rm", "-v", volume + ":/data", image, "migrate")
+    docker("run", "--rm", "-v", volume + ":/data", image, "migrate")
+    interactive("admin", "create")
+    docker("run", "--rm", "-v", volume + ":/data", image, "seed-demo")
+    docker("run", "--rm", "-v", volume + ":/data", image, "seed-demo")
     signin(opener, base)
     body, headers = request(opener, base, "/")
     assert body.count('class="service-card"') == 4, "Seed not idempotent"
@@ -172,7 +173,7 @@ try:
     body, _ = request(opener, base, "/admin")
     assert "Welcome back." in body, "Recovery did not invalidate previous session"
     signin(opener, base)
-    print("PASS non-root image; migration idempotence; interactive bootstrap/recovery; demo idempotence; isolated startup/health; login; no-store headers; restart persistence; session invalidation")
+    print("PASS non-root image; automatic fresh-volume migration; migration idempotence; interactive bootstrap/recovery; demo idempotence; isolated startup/health; login; no-store headers; restart persistence; session invalidation")
 except Exception:
     print(docker("logs", "--tail", "20", container))
     raise

@@ -34,43 +34,54 @@ func Open(path string) (*Store, error) {
 	}
 	return &Store{db}, nil
 }
+
+// The ordered embedded migrations are the single source of the supported version.
+var schemaMigrations = [...]string{schema, vpnSchema, packsSchema}
+
 func (s *Store) Migrate() error {
-	return s.Write(func(tx *sql.Tx) error {
-		if _, e := tx.Exec("CREATE TABLE IF NOT EXISTS migrations(version INTEGER PRIMARY KEY)"); e != nil {
-			return e
+	ctx := context.Background()
+	conn, e := s.DB.Conn(ctx)
+	if e != nil {
+		return fmt.Errorf("open migration connection: %w", e)
+	}
+	defer conn.Close()
+	// Acquire the write lock BEFORE reading the ledger. Separate processes then
+	// observe the preceding migrator's committed version instead of racing DDL.
+	if _, e = conn.ExecContext(ctx, "BEGIN IMMEDIATE"); e != nil {
+		return fmt.Errorf("acquire database migration lock: %w", e)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			conn.ExecContext(ctx, "ROLLBACK")
 		}
-		var version int
-		if e := tx.QueryRow("SELECT coalesce(max(version),0) FROM migrations").Scan(&version); e != nil {
-			return e
+	}()
+	if _, e = conn.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS migrations(version INTEGER PRIMARY KEY)"); e != nil {
+		return e
+	}
+	var version int
+	if e = conn.QueryRowContext(ctx, "SELECT coalesce(max(version),0) FROM migrations").Scan(&version); e != nil {
+		return e
+	}
+	if version > len(schemaMigrations) {
+		return fmt.Errorf("database schema %d is newer than supported version %d; restore a matching backup to downgrade", version, len(schemaMigrations))
+	}
+	if version < 0 {
+		return fmt.Errorf("invalid database migration version")
+	}
+	for i := version; i < len(schemaMigrations); i++ {
+		if _, e = conn.ExecContext(ctx, schemaMigrations[i]); e != nil {
+			return fmt.Errorf("apply database migration %d: %w", i+1, e)
 		}
-		if version > 3 {
-			return fmt.Errorf("database schema is newer than this binary")
+		if _, e = conn.ExecContext(ctx, "INSERT INTO migrations(version) VALUES(?)", i+1); e != nil {
+			return fmt.Errorf("record database migration %d: %w", i+1, e)
 		}
-		if version == 0 {
-			if _, e := tx.Exec(schema); e != nil {
-				return e
-			}
-			if _, e := tx.Exec("INSERT INTO migrations(version) VALUES(1)"); e != nil {
-				return e
-			}
-		}
-		if version < 2 {
-			if _, e := tx.Exec(vpnSchema); e != nil {
-				return e
-			}
-			if _, e := tx.Exec("INSERT INTO migrations(version) VALUES(2)"); e != nil {
-				return e
-			}
-		}
-		if version < 3 {
-			if _, e := tx.Exec(packsSchema); e != nil {
-				return e
-			}
-			_, e := tx.Exec("INSERT INTO migrations(version) VALUES(3)")
-			return e
-		}
-		return nil
-	})
+	}
+	if _, e = conn.ExecContext(ctx, "COMMIT"); e != nil {
+		return fmt.Errorf("commit database migrations: %w", e)
+	}
+	committed = true
+	return nil
 }
 
 func now() string              { return time.Now().UTC().Format(time.RFC3339) }

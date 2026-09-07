@@ -29,58 +29,60 @@ with tempfile.TemporaryDirectory(prefix="waypoint-tunnel-test-") as directory:
                TUNNEL_TOKEN_FILE=str(token_file), TUNNEL_SUBNET="172.30.249.0/29",
                TUNNEL_CONNECTOR_IP="172.30.249.2", TUNNEL_PORTAL_IP="172.30.249.3",
                VPN_ENDPOINT="vpn.example.invalid:51820", VPN_BIND_IP="127.0.0.1",
-               VPN_UDP_PORT="51820", APP_ENV="development",
+               VPN_UDP_PORT="0", APP_ENV="development",
                BASE_URL="http://localhost:8080", TRUSTED_PROXIES="")
-    def compose(*args, vpn=False, offline=False, check=True):
+    def compose(*args, offline=False, check=True):
         cmd = ["docker", "compose", "--env-file", "/dev/null", "-p", project,
                "-f", "compose.yaml"]
-        if vpn:
-            cmd += ["-f", "compose.vpn.yaml"]
-        cmd += ["-f", "compose.tunnel.yaml"]
         if offline:
             cmd += ["-f", str(path / "offline.yaml")]
         return run(*cmd, *args, env=env, check=check)
 
-    for vpn in (False, True):
-        cfg = json.loads(compose("config", "--format", "json", vpn=vpn).stdout)
-        portal, connector = cfg["services"]["portal"], cfg["services"]["cloudflared"]
-        assert not portal.get("ports") and not connector.get("ports")
-        assert portal["environment"]["APP_ENV"] == "production"
-        assert portal["environment"]["BASE_URL"] == "https://portal.example.invalid"
-        assert portal["environment"]["TRUSTED_PROXIES"] == "172.30.249.2/32"
-        assert set(portal["networks"]) == set(connector["networks"]) == {"tunnel"}
-        assert connector["user"] == "65532:65532" and connector["read_only"]
-        assert connector["cap_drop"] == ["ALL"]
-        assert len(connector["volumes"]) == 1
-        mount = connector["volumes"][0]
-        assert mount["read_only"] and mount["target"] == "/run/secrets/cloudflare-token"
-        assert mount["bind"]["create_host_path"] is False
-        assert token not in json.dumps(cfg), "Token leaked into Compose configuration"
-        assert not connector.get("environment", {}).get("TUNNEL_TOKEN")
-        if vpn:
-            assert set(cfg["services"]["gateway"]["networks"]) == {"vpn-egress"}
-            assert portal["environment"]["VPN_ENABLED"] == "true"
-            assert cfg["services"]["gateway"]["ports"][0]["protocol"] == "udp"
-    print("PASS tunnel/base/VPN Compose merge; no portal ports; exact proxy trust; isolated secret mount", flush=True)
+    cfg = json.loads(compose("config", "--format", "json").stdout)
+    portal, connector = cfg["services"]["portal"], cfg["services"]["cloudflared"]
+    assert not portal.get("ports") and not connector.get("ports")
+    assert portal["environment"]["APP_ENV"] == "production"
+    assert portal["environment"]["BASE_URL"] == "https://portal.example.invalid"
+    assert portal["environment"]["TRUSTED_PROXIES"] == "172.30.249.2/32"
+    assert set(portal["networks"]) == set(connector["networks"]) == {"tunnel"}
+    assert connector["user"] == "65532:65532" and connector["read_only"]
+    assert connector["cap_drop"] == ["ALL"]
+    assert len(connector["volumes"]) == 1
+    mount = connector["volumes"][0]
+    assert mount["read_only"] and mount["target"] == "/run/secrets/cloudflare-token"
+    assert mount["bind"]["create_host_path"] is False
+    assert token not in json.dumps(cfg), "Token leaked into Compose configuration"
+    assert not connector.get("environment", {}).get("TUNNEL_TOKEN")
+    assert set(cfg["services"]["gateway"]["networks"]) == {"vpn-egress"}
+    assert portal["environment"]["VPN_ENABLED"] == "true"
+    assert cfg["services"]["gateway"]["ports"][0]["protocol"] == "udp"
+    print("PASS consolidated Compose configuration; no portal ports; exact proxy trust; isolated secret mount", flush=True)
 
     missing_env = dict(env)
     missing_env.pop("TUNNEL_HOSTNAME")
     missing = run("docker", "compose", "--env-file", "/dev/null", "-f", "compose.yaml",
-                  "-f", "compose.tunnel.yaml", "config", "-q", env=missing_env, check=False)
+                  "config", "-q", env=missing_env, check=False)
     assert missing.returncode != 0, "Missing hostname silently accepted"
     print("PASS missing hostname fails configuration", flush=True)
 
     # Internal network prevents even test connector traffic from reaching Cloudflare.
     (path / "offline.yaml").write_text(
-        "networks:\n  tunnel:\n    internal: true\n"
+        "networks:\n  tunnel:\n    internal: true\n  vpn-egress:\n    internal: true\n"
         "services:\n  cloudflared:\n    restart: 'no'\n"
         "  portal:\n    healthcheck:\n      interval: 1s\n")
     try:
-        compose("run", "--rm", "--no-deps", "portal", "migrate", offline=True)
-        compose("up", "-d", "--no-build", "portal", "cloudflared", offline=True)
+        compose("up", "-d", "--no-build", offline=True)
         portal_id = compose("ps", "-q", "portal", offline=True).stdout.strip()
         connector_id = compose("ps", "-q", "cloudflared", offline=True).stdout.strip()
         assert portal_id and connector_id
+        gateway_id = compose("ps", "-q", "gateway", offline=True).stdout.strip()
+        assert gateway_id, "Full-stack startup omitted gateway"
+        assert "First-time setup:" in (run("docker", "logs", portal_id).stderr), "Fresh volume did not initialize"
+        gateway_info = json.loads(run("docker", "inspect", gateway_id).stdout)[0]
+        assert {cap.removeprefix("CAP_") for cap in gateway_info["HostConfig"]["CapAdd"]} == {"NET_ADMIN"}
+        assert set(gateway_info["NetworkSettings"]["Networks"]) == {project + "_vpn-egress"}
+        control = compose("exec", "-T", "portal", "/waypoint", "health", offline=True)
+        assert control.returncode == 0
         for container in (portal_id, connector_id):
             info = json.loads(run("docker", "inspect", container).stdout)[0]
             assert not info["HostConfig"].get("PortBindings")

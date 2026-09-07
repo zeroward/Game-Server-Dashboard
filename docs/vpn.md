@@ -1,10 +1,10 @@
-# Optional WireGuard gateway
+# WireGuard gateway
 
-Waypoint can enroll devices and explicitly approve IPv4 destinations through a dedicated WireGuard gateway. This is an opt-in extension; normal startup remains an unprivileged directory and manual request desk. It does not manage Waygate's gateway, Tailscale, external application accounts, or the host firewall.
+Waypoint can enroll devices and explicitly approve IPv4 destinations through a dedicated WireGuard gateway. The default Compose stack starts this separate gateway alongside the unprivileged portal and Cloudflare connector. It does not manage Waygate's gateway, Tailscale, external application accounts, or the host firewall.
 
 ## Operator setup
 
-Use a Linux Docker host with kernel WireGuard and nftables support. The gateway uses its own Docker network namespace, drops all capabilities except `NET_ADMIN`, and needs neither host networking nor `/dev/net/tun`, `SYS_MODULE`, privileged mode, or the Docker socket. Its process runs as UID 0 / GID 65532 inside that namespace; the portal stays UID/GID 65532 with no capabilities. Rootless Docker is not supported for this optional gateway. Do not change either container to host networking or share its namespace with the portal.
+Use a Linux Docker host with kernel WireGuard and nftables support. The gateway uses its own Docker network namespace, drops all capabilities except `NET_ADMIN`, and needs neither host networking nor `/dev/net/tun`, `SYS_MODULE`, privileged mode, or the Docker socket. Its process runs as UID 0 / GID 65532 inside that namespace; the portal stays UID/GID 65532 with no capabilities. Rootless Docker is not supported for this gateway. Do not change either container to host networking or share its namespace with the portal.
 
 The first version reserves **10.77.0.0/24**, gateway **10.77.0.1**, interface **wg0**, and egress interface **eth0**. Check for conflicts with the host LAN, other VPNs (including Waygate), Docker networks, and client networks before enabling. These fixed values are deliberately not a general topology editor. One gateway and one portal instance are supported. The pool has 253 lifetime device addresses; revoked addresses and keys are retained and never reassigned, preventing delayed policies from reaching a replacement device. Up to ten non-revoked devices per member are permitted.
 
@@ -14,16 +14,15 @@ Set these values in `.env`:
 - `VPN_BIND_IP`: defaults to `127.0.0.1`. Deliberately choose the host interface that should accept VPN UDP traffic, or keep loopback behind your chosen UDP forwarding arrangement.
 - `VPN_UDP_PORT`: host-side UDP port, default 51820. The gateway listens on container port 51820. The endpoint must match your external forwarding configuration.
 
-For an existing portal, back up its volume first and stop it during the schema upgrade:
+Configure Cloudflare as described in [tunnel setup](tunnel.md), then start:
 
 ```sh
-docker compose stop portal
-docker compose -f compose.yaml -f compose.vpn.yaml build
-docker compose -f compose.yaml -f compose.vpn.yaml run --rm --no-deps portal migrate
-docker compose -f compose.yaml -f compose.vpn.yaml up -d portal gateway
+docker compose up -d --build
 ```
 
-For a new installation, also run the interactive `portal admin create` command after migration. Never use a default password. The overlay initializes private control, gateway, and delivery-key volumes. It publishes only the deliberately configured UDP port in addition to the existing portal port. The application does not configure router forwarding, DNS, HTTPS, host routes, firewall exceptions, or external containers. The gateway's Docker bridge must be able to reach the approved destination addresses through the operator's existing routing. Only attach additional networks deliberately; the supplied topology expects destination traffic to leave `eth0`.
+Startup automatically initializes/upgrades the database and creates private control, gateway, and delivery-key volumes. For a fresh installation, run `docker compose exec portal /waypoint admin create` afterward. Back up all four volumes before upgrades. Existing installations retain data and device keys when the project name stays the same.
+
+Only the configured UDP port is published; the website uses Cloudflare. The application does not configure router forwarding, DNS, host routes, or host firewall rules. The gateway bridge must reach approved destination IPs through the operator's existing routing; the supplied topology expects egress via `eth0`.
 
 Open **Administration → network access**. The page must show a recent gateway confirmation before enrolling friends. A handshake is not a claim that an external application is configured or healthy.
 
@@ -37,7 +36,7 @@ Open **Administration → network access**. The page must show a recent gateway 
 6. The download is owner-only (admins cannot download another member's pack) and expires 30 days after enrollment. It is consumed transactionally before bytes are sent. Interrupted or lost downloads require **Replace connection pack**: confirm retirement of the old device, choose the service and give a reason. The replacement gets a new identity and **fresh approval**; old permissions are queued for removal at the gateway. Refresh after download to see its consumed state.
 7. External services still require their own accounts, setup, and guides. Use the service's Get Help discussion for support; never paste keys or profiles there.
 
-**Advanced: use your own public key** preserves client-generated enrollment for existing users and operators who prefer to keep private keys exclusively on the client. Create an empty tunnel locally, enroll its public key, request a connection, and enter the approved settings under **Set up this device**. Automatic packs are available when the portal has `VPN_DELIVERY_DIR`; the supplied VPN overlay mounts a dedicated volume at `/delivery`. Without it, only the advanced flow is enabled.
+**Advanced: use your own public key** preserves client-generated enrollment for existing users and operators who prefer to keep private keys exclusively on the client. Create an empty tunnel locally, enroll its public key, request a connection, and enter the approved settings under **Set up this device**. Automatic packs are available when the portal has `VPN_DELIVERY_DIR`; the supplied Compose stack mounts a dedicated volume at `/delivery`. Without it, only the advanced flow is enabled.
 
 A downloaded pack cannot update itself when additional routes are approved. Request a replacement and fresh approval for the desired destination, or use the advanced WireGuard editor with administrator guidance. QR codes and repeat download vaults are not implemented. One-time delivery expires independently of network access: **an expired download does not disable a VPN peer**.
 
@@ -61,7 +60,7 @@ The optional portal listener is a Unix socket on the `vpn-control` volume, with 
 
 The protocol contains revision hashes, numeric identifiers, public keys, assigned addresses, and approved rule snapshots/expiries. It carries no usernames, discussion bodies, application credentials, or private keys. The gateway accepts typed bounded fields, rejects overlapping/duplicate peer identities and unsafe input, and never executes a shell or accepts arbitrary commands. Acknowledgments describe applied policy, not independent verification of external permissions. Kernel configuration changes by another privileged operator are outside this agent's ownership model; do not share `wg0` or its nftables table with other managers.
 
-Back up four separate volumes with services stopped: portal data, `vpn-control`, `vpn-gateway`, and `vpn-delivery`. The gateway volume contains the server private key and last approved policy and must be protected as secret material. Use the archive procedure in `operations.md`, retaining ownership and permissions. Migration 2 adds device/network records; migration 3 adds encrypted delivery records and preserves existing users, devices, and grants. Startup refuses a mismatched schema.
+Back up four separate volumes with services stopped: portal data, `vpn-control`, `vpn-gateway`, and `vpn-delivery`. The gateway volume contains the server private key and last approved policy and must be protected as secret material. Use the archive procedure in `operations.md`, retaining ownership and permissions. Migration 2 adds device/network records; migration 3 adds encrypted delivery records and preserves existing users, devices, and grants. Startup applies pending migrations automatically and refuses newer unsupported schemas.
 
 Automatic enrollment uses Go's maintained X25519 implementation and AES-256-GCM with random nonces. The database stores only encrypted private bytes while a pack is pending, bound to the owner, device ID, and public key. The mode-0600 encryption key lives at `/delivery/delivery.key` on the **portal-only** `vpn-delivery` volume; the gateway and control protocol never receive client private keys. This separates a database-only backup from its decryption key, not the running portal process from its own key. Protect both volumes and backups; a compromised portal process can decrypt pending packs.
 
@@ -69,13 +68,13 @@ Successful delivery deletes the active ciphertext; expiry, device revocation/rep
 
 Before restoring a portal backup, **stop the gateway**. An older backup could contain approvals that were subsequently revoked. Review and correct restored device/grant records before reconnecting it. Restore the gateway key if clients should retain their configured server public key; generating a new server key requires redistributing its public key to every client. Never start two gateways from the same key/data volume. To rotate the control secret, stop both services, replace the token with 32 cryptographically random bytes encoded as 64 hex characters while preserving mode/ownership, then restart both. Do not print it in logs or put it in URLs.
 
-Disable this extension by stopping/removing the gateway with the VPN overlay **before** returning to the base Compose configuration. Removing a web link or `VPN_ENABLED` alone is not a network revocation: a still-running disconnected gateway retains prior grants until expiry. Keep its volume for history/recovery; never use `down -v` inadvertently.
+Disable network access by explicitly stopping the gateway with `docker compose stop gateway`. Removing a web link or changing portal configuration is not a network revocation: a disconnected gateway retains grants until expiry. Starting the full stack again restarts it. Keep its volume for history/recovery; never use `down -v` inadvertently.
 
 ## Tests
 
 ```sh
 docker build --target test .
-docker compose --profile test run --rm --build browser-tests
+docker compose --env-file tests/compose.env --profile test run --rm --no-deps --build browser-tests
 docker build -t waypoint:local .
 python3 tests/container-smoke.py
 python3 tests/container-smoke.py --vpn

@@ -2,31 +2,40 @@
 
 A self-hosted library of services and a small request desk for friends. Discover a game or app, request access where needed, discuss setup, and find your next steps. External accounts, media requests, and monitoring stay in their existing applications. An optional dedicated WireGuard gateway adds explicitly approved device network access.
 
-Built in Go with SQLite, server-rendered HTML, and lightweight JavaScript. No Redis, Node runtime, cloud account, SMTP, service API credentials, or privileged container is required. Node/Playwright are used only by the isolated browser tests.
+Built in Go with SQLite, server-rendered HTML, and lightweight JavaScript. The default Docker stack includes the portal, a dedicated WireGuard gateway, and a Cloudflare Tunnel connector. Node/Playwright are used only for isolated browser tests.
 
-The optional [WireGuard/My Devices extension](docs/vpn.md) uses a separate gateway with container-scoped `NET_ADMIN`. It is disabled by default and never grants network access from portal membership or manual service records.
+## Start
 
-## Start locally
-
-```sh
-cp .env.example .env
-docker compose build
-docker compose run --rm portal migrate
-docker compose run --rm portal admin create
-docker compose up -d
-```
-
-Visit **http://localhost:8080**. Bootstrap prompts for an administrator username and a password of at least 12 characters. There are no default credentials or unauthenticated setup endpoints. Keep the password in your own password manager.
-
-Optionally add example cards (no accounts, active grants, or real destinations):
+1. For a new installation, copy `.env.example` to `.env`. For an existing installation, keep your file and add any missing required settings.
+2. Set `TUNNEL_HOSTNAME` to the website hostname and `VPN_ENDPOINT` to the separately reachable WireGuard host and UDP port. Preserve any existing port override.
+3. Follow [Cloudflare setup](docs/tunnel.md) to create the token file and point the public hostname to `http://portal:8080`. Review the gateway [network prerequisites](docs/vpn.md).
+4. Start the full stack:
 
 ```sh
-docker compose run --rm portal seed-demo
+docker compose up -d --build
 ```
 
-The seed is explicit and idempotent and does not replace existing service settings. Example connection data uses `example.invalid` and is labeled as demonstration data. Normal startup never seeds anything. The WoW, Plex, Seerr, and Status actions remain disabled/unconfigured until you set their actual URLs.
+The portal initializes an empty database and applies pending migrations on every startup, before serving requests. Sidecars wait for portal health. You do not need a separate migration command.
 
-The application is exposed on loopback only. A named volume persists the database, server sessions, CSRF key, and uploads. The image runs as UID/GID **65532**, drops capabilities, and has a read-only root filesystem. A bind mount, if substituted, must be writable by that UID; do not make data world-writable.
+For a fresh installation only, create your administrator:
+
+```sh
+docker compose exec portal /waypoint admin create
+```
+
+Bootstrap prompts for a username and password of at least 12 characters. There are no default credentials or unauthenticated setup endpoints. Existing installations retain their administrator. Then visit **https://your-configured-hostname**.
+
+There are no overlay files to select. Keep the same Compose project/directory so the existing `waypoint-data`, `vpn-control`, `vpn-gateway`, and `vpn-delivery` volumes are retained. When updating an older checkout, drop the old `-f` arguments. The current configuration has no portal host-port mapping; HTTPS access goes through Cloudflare.
+
+Only the gateway receives container-scoped `NET_ADMIN`. The portal and connector run as UID/GID **65532** with no capabilities and read-only root filesystems. No service receives the Docker socket, host networking, or privileged mode.
+
+Optional example cards, without accounts, grants, or real destinations:
+
+```sh
+docker compose exec portal /waypoint seed-demo
+```
+
+The seed is explicit and idempotent. It never replaces existing settings or runs automatically.
 
 ## Configure your community
 
@@ -44,21 +53,11 @@ Manual status is labeled with its update time. It is never a live health or play
 
 ## HTTPS and reverse proxies
 
-For an optional Cloudflare Tunnel container, follow [the tunnel setup guide](docs/tunnel.md). Its Compose overlay works with the VPN overlay, uses a mounted token file, forces HTTPS cookies, and removes the portal host-port mapping. Set your Cloudflare hostname and publish the route to `http://portal:8080`. The WireGuard UDP endpoint remains separate.
+The default stack derives HTTPS branding/links and Secure cookies from `TUNNEL_HOSTNAME`, trusts only the connector's static IP for forwarded client addresses, and publishes no portal web port. See [tunnel setup and verification](docs/tunnel.md).
 
-For production, set:
+Native development can still run the portal alone. Runtime `APP_ENV`, `BASE_URL`, and `TRUSTED_PROXIES` configure a separately managed proxy deployment; the supplied Compose file intentionally fixes production settings. Preserve the original Host and trust only your proxy's source CIDRs. Forwarded identity headers never authenticate users.
 
-```dotenv
-APP_ENV=production
-BASE_URL=https://portal.your-domain.example
-TRUSTED_PROXIES=
-```
-
-Use your own real origin. Production refuses an HTTP base URL and sets Secure, HttpOnly, SameSite=Lax session cookies. Keep the Compose loopback bind when a host reverse proxy connects to `127.0.0.1:8080`. Terminate HTTPS at your chosen proxy, preserve the original Host, and set the original `X-Forwarded-For` chain. List only that proxy's source CIDRs in `TRUSTED_PROXIES`; otherwise forwarded client addresses are ignored. Forwarded identity headers are never authentication.
-
-For a proxy in another container, deliberately attach it to the Compose network and route to `portal:8080`, or use the operator's chosen reachable bind. Do not use host networking or expose SQLite/uploads. The application does not modify your proxy, DNS, firewall, or external networks. Its health probe is `GET /healthz` and returns only `ok`.
-
-Disable shared caching for application pages and `/media/`; the app sends `Cache-Control: private, no-store`. Only bundled `/static/` assets are public static files. Configure proxy logs to omit query strings and redact invitation/reset delivery URLs. Do not put tracking or analytics on authentication pages. The application itself does not log request URLs, bodies, token values, or passwords.
+The health endpoint is `GET /healthz`; it returns only `ok` after startup migrations finish. Disable shared caching for application pages, media, and connection-pack downloads. Only bundled static assets may be publicly cached. Never log request bodies, cookies, token values, or private configurations.
 
 ## Recovery
 
@@ -67,25 +66,25 @@ An enabled administrator can issue a one-hour single-use reset link from a membe
 For the sole administrator, use the local interactive command:
 
 ```sh
-docker compose run --rm portal admin recover --username OWNER
+docker compose exec portal /waypoint admin recover --username OWNER
 ```
 
 This resets and re-enables an existing administrator, invalidates sessions and reset links, and records a local recovery audit event. It neither creates an external account nor restores revoked portal grants. Local filesystem/container administration is the recovery trust boundary. Password arguments and noninteractive password input are deliberately rejected.
 
 ## Back up, restore, and upgrade
 
-Use a consistent backup of the **entire data volume**, including `waypoint.db`, any WAL/SHM files, `csrf.key`, and `uploads/`. The simplest small-instance procedure is a brief stop:
+Use a consistent backup of all four volumes. The **entire portal data volume** includes `waypoint.db`, any WAL/SHM files, `csrf.key`, and `uploads/`. The simplest small-instance procedure is a brief stop:
 
 ```sh
-docker compose stop portal
-# Use your container volume backup tool to archive the entire waypoint-data volume.
-# In Docker Compose the actual volume name is normally <project>_waypoint-data.
-docker compose start portal
+docker compose stop
+# Archive waypoint-data, vpn-control, vpn-gateway, and vpn-delivery.
+# Actual volume names normally start with <project>_.
+docker compose up -d
 ```
 
-An exact portable Docker backup/restore procedure is in [operations documentation](docs/operations.md). Do not copy only a live SQLite main file while writes or WAL are active. Protect backups as private account and discussion data. Restore the whole snapshot to an empty data volume while the application is stopped, preserve ownership, run `migrate`, and start. Test restores on an isolated instance.
+An exact portable Docker backup/restore procedure is in [operations documentation](docs/operations.md). Do not copy only a live SQLite main file while writes or WAL are active. Protect backups as private account and discussion data. Restore the whole snapshot to an empty data volume while the application is stopped, preserve ownership, and start; startup applies any pending migrations. Test restores on an isolated instance.
 
-Before upgrading: back up, stop the app, build the desired revision, run `docker compose run --rm portal migrate`, then `docker compose up -d`. Migrations are versioned and transactional. Startup refuses missing or newer schemas. Do not downgrade a binary against a newer database; restore the matching backup. Use a single application instance per SQLite volume.
+Before upgrading, back up all four volumes consistently, then run `docker compose up -d --build`. Startup applies versioned migrations under a SQLite write lock. Failures roll back schema and ledger together and leave the portal unhealthy; unsupported newer schemas are refused. The explicit `migrate` command remains available for maintenance. Do not downgrade a binary against a newer database; restore the matching backup. Use a single application instance per SQLite volume.
 
 ## Development and verification
 
@@ -93,9 +92,9 @@ With Go 1.26 or newer installed:
 
 ```sh
 go mod download
-go run ./cmd/waypoint migrate
-go run ./cmd/waypoint admin create
 go run ./cmd/waypoint serve
+# In another terminal after startup:
+go run ./cmd/waypoint admin create
 make check
 make test
 make build
@@ -107,7 +106,7 @@ Without Go installed:
 
 ```sh
 docker build --target test .
-docker compose --profile test run --rm --build browser-tests
+docker compose --env-file tests/compose.env --profile test run --rm --no-deps --build browser-tests
 ```
 
 The Go test target runs format checks, `go vet`, and `go test -race -count=1 ./...`. Production compilation occurs in the regular image build. Browser tests build a separate fixture binary under the `e2e` build tag, create a temporary database and random password, and exercise invitation → request → discussion → approval → fulfillment → My Access. They never connect to the operator's running portal or use its data. Screenshots/results are written to `test-results/`.
@@ -115,7 +114,9 @@ The Go test target runs format checks, `go vet`, and `go test -race -count=1 ./.
 To exercise the production image bootstrap/recovery and restart behavior with disposable Docker resources:
 
 ```sh
-python3 tests/container-smoke.py
+python3 tests/container-smoke.py --vpn
+python3 tests/startup-smoke.py
+python3 tests/tunnel-smoke.py
 ```
 
 For dependency vulnerability analysis:
@@ -127,4 +128,4 @@ go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 See [implementation status](docs/implementation-status.md) for checks actually executed, [security](docs/security.md) for trust boundaries, and [roadmap](docs/roadmap.md) for deferred work.
 
 
-With the optional VPN overlay, friends can use **My Devices → Add device & request connection**, then download a one-time ZIP after administrator approval and gateway confirmation. Import the included `.conf` in WireGuard; no private-key knowledge is needed. Lost packs require replacement and fresh approval. Existing public-key enrollment remains under Advanced. See [VPN setup, migration 3, and delivery-key backup instructions](docs/vpn.md). Keep the new `vpn-delivery` volume persistent and portal-only.
+Friends can use **My Devices → Add device & request connection**, then download a one-time ZIP after administrator approval and gateway confirmation. Import the included `.conf` in WireGuard; no private-key knowledge is needed. Lost packs require replacement and fresh approval. Existing public-key enrollment remains under Advanced. See [VPN setup and delivery-key backup instructions](docs/vpn.md). Keep the new `vpn-delivery` volume persistent and portal-only.

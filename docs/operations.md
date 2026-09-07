@@ -4,7 +4,7 @@
 
 The workspace was empty and had no usable Git history or project instructions. Go was selected by the operator. The application is a modular monolith with SQLite and server-rendered templates; browser JavaScript provides copy feedback, previews, and menu behavior. Canonical full-page details avoid modal/history complexity. Built-in abstract artwork keeps the release self-contained and avoids unlicensed game imagery.
 
-SCS provides server-side sessions; Argon2id provides password hashing; Gorilla CSRF protects mutations; Goldmark and Bluemonday render sanitized Markdown. SQL and server policies own authorization. No SPA payload contains raw service records. Templates and static assets are embedded in the Go binary; uploads remain in the persistent volume. Schema migration 1 installs the portal; migration 2 adds optional VPN device/network records and notification references. Migration 3 adds encrypted one-time device deliveries. All are transactional. Run migrate explicitly before upgrading startup. Future schema changes must add a new versioned migration and preserve historical records.
+SCS provides server-side sessions; Argon2id provides password hashing; Gorilla CSRF protects mutations; Goldmark and Bluemonday render sanitized Markdown. SQL and server policies own authorization. No SPA payload contains raw service records. Templates and static assets are embedded in the Go binary; uploads remain in the persistent volume. Schema migration 1 installs the portal; migration 2 adds optional VPN device/network records and notification references. Migration 3 adds encrypted one-time device deliveries. All are transactional. Startup automatically runs pending migrations before opening HTTP or the control socket. Migration checks and changes share a BEGIN IMMEDIATE transaction; a lock timeout, failed migration, or unsupported newer schema stops startup without partial changes. The explicit migrate command remains available. Future schema changes must add a new versioned migration and preserve historical records.
 
 ## Routes and contracts
 
@@ -55,7 +55,7 @@ docker volume create waypoint-restored
 docker run --rm -v waypoint-restored:/data -v "$PWD/backups:/backup:ro" alpine:3.22 tar -xzf /backup/waypoint-backup.tar.gz -C /data
 ```
 
-Point a separate Compose project at this restored volume, retaining UID/GID 65532 ownership, and run `migrate` before startup. Verify account login, request history, uploaded artwork, and access expiry before substituting it for the original volume. Preserve the original until validation succeeds. Do not restore over a running database or use `docker compose down -v` against data you want to keep.
+Point a separate Compose project at this restored volume, retaining UID/GID 65532 ownership, and allow startup to apply pending migrations. Verify account login, request history, uploaded artwork, and access expiry before substituting it for the original volume. Preserve the original until validation succeeds. Do not restore over a running database or use `docker compose down -v` against data you want to keep.
 
 ## Operational limits
 
@@ -65,8 +65,8 @@ Make regular backups and keep the Go toolchain/dependencies updated. Review the 
 
 ## Optional gateway operations
 
-See [VPN deployment and recovery](vpn.md) for the explicit Compose overlay, separate control/key storage, network prerequisites, and outage semantics. Back up all four volumes (portal data, control, gateway, and portal-only delivery key) consistently and stop the gateway before restoring an old portal database so revoked grants cannot be resurrected. Default Compose remains a single unprivileged application; the gateway is never started implicitly.
+See [VPN deployment and recovery](vpn.md) for the consolidated Compose stack, separate control/key storage, network prerequisites, and outage semantics. Back up all four volumes (portal data, control, gateway, and portal-only delivery key) consistently and stop the gateway before restoring an old portal database so revoked grants cannot be resurrected. Default Compose starts all three services; only the separate gateway receives NET_ADMIN.
 
-## Optional website tunnel
+## Website tunnel
 
-[Cloudflare Tunnel](tunnel.md) is an opt-in Compose overlay for HTTPS browser access. It requires no schema change and does not carry the WireGuard UDP endpoint. The pinned connector gets one protected token file and a dedicated bridge; the portal trusts only its fixed IP. Production mode and removal of the portal host port are enforced by the overlay. Existing project volumes are retained.
+[Cloudflare Tunnel](tunnel.md) is included in the default Compose stack for HTTPS browser access. It requires no schema change and does not carry the WireGuard UDP endpoint. The pinned connector gets one protected token file and a dedicated bridge; the portal trusts only its fixed IP. Production mode and removal of the portal host port are enforced by Compose. Existing project volumes are retained.

@@ -101,9 +101,15 @@ func run() error {
 	default:
 		return fmt.Errorf("unknown command: %s", command)
 	}
-	var version int
-	if e = s.DB.QueryRow("SELECT max(version) FROM migrations").Scan(&version); e != nil || version != 3 {
-		return fmt.Errorf("database migration required: run waypoint migrate")
+	if e = s.Migrate(); e != nil {
+		return fmt.Errorf("startup migration failed: %w", e)
+	}
+	var admins int
+	if e = s.DB.QueryRow("SELECT count(*) FROM users WHERE role='admin'").Scan(&admins); e != nil {
+		return e
+	}
+	if admins == 0 {
+		log.Print("First-time setup: create your administrator with docker compose exec portal /waypoint admin create (native: waypoint admin create)")
 	}
 	prod := env("APP_ENV", "development") == "production"
 	base := strings.TrimRight(env("BASE_URL", "http://localhost:8080"), "/")

@@ -1,6 +1,6 @@
 # Security and trust boundaries
 
-**Hiding a link does not secure its destination.** Every external application and gateway/firewall must enforce its own access rules. A member invitation, manual service request approval, or active portal record never changes LAN reachability or external permissions. Explicit device-network approval in the optional gateway is a separate operation.
+**Hiding a link does not secure its destination.** Every external application and gateway/firewall must enforce its own access rules. A member invitation, manual service request approval, or active portal record never changes LAN reachability or external permissions. Explicit device-network approval in the separate gateway is a separate operation.
 
 Waypoint does not connect to AzerothCore databases, Waygate sessions, Plex/Seerr APIs, monitoring APIs, Docker sockets, identity providers, or external admin networks. It links to administrator-configured destinations. HTTP/HTTPS internal hostnames are intentional and are never fetched for previews, icons, metadata, or health checks.
 
@@ -40,9 +40,9 @@ Approval means review is complete and setup is still pending. Fulfillment requir
 
 Revocation, expiry, and disablement stop restricted portal content immediately. They create follow-ups for separate external removal. Recording a follow-up complete is an administrator assertion, not automated verification. Re-enabling a member does not restore revoked records. A regrant does not silently dismiss an outstanding external-removal reminder; an administrator must reconcile it deliberately.
 
-No production deployment, host DNS/firewall changes, external entitlement synchronization, or host networking is included. The opt-in WireGuard gateway manages only its own container network namespace. Read [the VPN trust boundary](vpn.md) before enabling it.
+No production deployment, host DNS/firewall changes, external entitlement synchronization, or host networking is included. The dedicated WireGuard gateway manages only its own container network namespace. Read [the VPN trust boundary](vpn.md) before enabling it.
 
-## Optional device-network approval
+## Device-network approval
 
 My Devices and network administration use the same enabled sessions, CSRF protection, no-store responses, and ownership checks as the portal. Changes are rate-limited to 40 per member per 15 minutes. Unique keys/addresses and a partial unique request index prevent concurrent duplicate enrollment/requests. Grants snapshot their reviewed destination and use expected versions for both request and target. Gateway policy excludes disabled users, revoked devices, expired grants, disabled targets, and unpublished/archived services. Destination permissions are separate from catalog visibility and manual access records. Expiry is enforced by timed kernel firewall sets even if the agent stops. Offline gateway revocations remain pending rather than being presented as completed.
 
@@ -59,6 +59,10 @@ Delivery generation/consumption is transactional: exactly one concurrent downloa
 
 Use HTTPS for remote delivery and disable shared caching/body logging at the proxy. No private bytes enter server-rendered HTML, sessions, notifications, audit targets, URLs, control messages, or plaintext storage. Downloaded files are credentials: friends should import them on one device and then remove the ZIP and extracted files. Do not submit them in support discussions. QR codes and repeat-download storage are deferred.
 
-## Optional Cloudflare Tunnel boundary
+## Cloudflare Tunnel boundary
 
-The tunnel overlay runs a pinned non-root connector with no capabilities, a read-only root filesystem, and only its token-file mount. It shares a dedicated bridge with the portal; the portal trusts only its static /32 for forwarded client IPs. The overlay forces production HTTPS cookies and removes the application host port. No forwarded identity headers become portal authentication. Cloudflare terminates HTTPS and can process portal content, including private VPN pack downloads. Keep token files, logs and the connector isolated, bypass shared caching, and preserve the original Host. See [setup and operational checks](tunnel.md).
+The default Compose stack runs a pinned non-root connector with no capabilities, a read-only root filesystem, and only its token-file mount. It shares a dedicated bridge with the portal; the portal trusts only its static /32 for forwarded client IPs. Compose forces production HTTPS cookies and removes the application host port. No forwarded identity headers become portal authentication. Cloudflare terminates HTTPS and can process portal content, including private VPN pack downloads. Keep token files, logs and the connector isolated, bypass shared caching, and preserve the original Host. See [setup and operational checks](tunnel.md).
+
+## Automatic startup migrations
+
+The portal opens no HTTP listener or control socket until pending migrations commit. The migration ledger is read after acquiring a SQLite write lock; schema and ledger changes roll back together on failure. Newer unsupported schemas are refused. Back up before upgrading, and restore a matching backup before downgrading. Bootstrap stays interactive and local; initialization never seeds demo users or grants.

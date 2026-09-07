@@ -1,8 +1,8 @@
 # Roadmap
 
-## Shipped optional WireGuard phase
+## Shipped WireGuard phase
 
-My Devices, automatic one-time importable connection packs (with advanced client-generated public-key enrollment), explicit per-device network approval, destination/port ACLs, expiry, revocation, and a separate gateway are implemented as an opt-in extension. See [VPN documentation](vpn.md) and [verification status](implementation-status.md). No general LAN permission follows from membership or manual service-access records.
+My Devices, automatic one-time importable connection packs (with advanced client-generated public-key enrollment), explicit per-device network approval, destination/port ACLs, expiry, revocation, and a separate gateway are included in the default Compose stack. See [VPN documentation](vpn.md) and [verification status](implementation-status.md). No general LAN permission follows from membership or manual service-access records.
 
 ## Later VPN options
 
