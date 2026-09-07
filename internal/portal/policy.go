@@ -131,6 +131,26 @@ func (s *Store) permitted(u *User, v Service) *Service {
 		s.DB.QueryRow("SELECT count(*) FROM recommendations WHERE user_id=? AND service_id=?", u.ID, v.ID).Scan(&n)
 		v.Recommended = n > 0
 	}
+	v.ExternalPortal = nil
+	if v.Mode == "external" && v.Config.ExternalPortalURL != "" {
+		audience := v.Config.ExternalPortalAudience
+		if audience == "" {
+			audience = "member"
+		}
+		label := v.Config.ExternalPortalLabel
+		if label == "" {
+			label = "Open signup portal"
+		}
+		link := Link{URL: v.Config.ExternalPortalURL, Label: label, Placement: "service", ParentID: v.ID, AccessService: sid, Audience: audience, Enabled: true, Style: "primary", NewTab: v.Config.ExternalPortalNewTab}
+		if validURL(link.URL, false) == nil && s.linkAllowed(u, link) {
+			v.ExternalPortal = &link
+		}
+	}
+	// Never retain a restricted destination or its label in a member-facing record.
+	v.Config.ExternalPortalURL = ""
+	v.Config.ExternalPortalLabel = ""
+	v.Config.ExternalPortalAudience = ""
+	v.Config.ExternalPortalNewTab = false
 	v.Links = s.LinksFor(u, "service", v.ID)
 	v.HTML = markdown(v.Config.Description)
 	v.GuideHTML = markdown(v.Config.Guide)

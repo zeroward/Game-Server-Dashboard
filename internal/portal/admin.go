@@ -338,7 +338,19 @@ func (a *App) saveService(u *User, id int, r *http.Request) (int, error) {
 	if !includes([]string{"info", "request", "external"}, mode) {
 		return 0, errors.New("Invalid access mode")
 	}
-	c := ServiceConfig{Type: r.FormValue("type"), Game: r.FormValue("game"), Summary: r.FormValue("summary"), Description: r.FormValue("description"), Tags: r.FormValue("tags"), Artwork: r.FormValue("artwork"), FocalX: number(r.FormValue("focal_x")), FocalY: number(r.FormValue("focal_y")), Host: r.FormValue("host"), Port: r.FormValue("port"), Version: r.FormValue("version"), Platform: r.FormValue("platform"), Connection: r.FormValue("connection"), Guide: r.FormValue("guide"), Status: r.FormValue("status"), DirectLink: number(r.FormValue("direct_link")), Duration: r.FormValue("duration") == "on"}
+	c := ServiceConfig{ExternalPortalURL: strings.TrimSpace(r.FormValue("external_portal_url")), ExternalPortalLabel: strings.TrimSpace(r.FormValue("external_portal_label")), ExternalPortalAudience: r.FormValue("external_portal_audience"), ExternalPortalNewTab: r.FormValue("external_portal_new_tab") == "on", Type: r.FormValue("type"), Game: r.FormValue("game"), Summary: r.FormValue("summary"), Description: r.FormValue("description"), Tags: r.FormValue("tags"), Artwork: r.FormValue("artwork"), FocalX: number(r.FormValue("focal_x")), FocalY: number(r.FormValue("focal_y")), Host: r.FormValue("host"), Port: r.FormValue("port"), Version: r.FormValue("version"), Platform: r.FormValue("platform"), Connection: r.FormValue("connection"), Guide: r.FormValue("guide"), Status: r.FormValue("status"), DirectLink: number(r.FormValue("direct_link")), Duration: r.FormValue("duration") == "on"}
+	if c.ExternalPortalAudience == "" {
+		c.ExternalPortalAudience = "member"
+	}
+	if !audienceValid(c.ExternalPortalAudience) {
+		return 0, errors.New("Invalid signup portal audience")
+	}
+	if len(c.ExternalPortalURL) > 2048 || len(c.ExternalPortalLabel) > 80 {
+		return 0, errors.New("Signup portal URL or button label is too long")
+	}
+	if e := validURL(c.ExternalPortalURL, false); e != nil {
+		return 0, fmt.Errorf("Signup portal: %w", e)
+	}
 	if !includes([]string{"game", "application", "network", "destination"}, c.Type) {
 		return 0, errors.New("Invalid service type")
 	}

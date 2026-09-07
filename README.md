@@ -137,3 +137,5 @@ Every account must set up a passkey or an authenticator on its next login. Exist
 Configure SMTP in **Administration → email**, then use **Email invitation** in Members. SMTP is optional and disabled until configured; copied invitation links still work. Users verify their email in **Account security** to receive notifications.
 
 Back up the new **portal-secrets** volume alongside your database. See [secure accounts and email](docs/accounts-email.md) for setup, recovery, delivery behavior, and hostname requirements.
+
+For services that handle their own registration, edit the service and select **Access mode → Handled in an external portal**. Enter the **Signup portal URL**, optionally customize the button label, and choose who may open it. The default is signed-in members; service/category visibility still applies. Signup can be available while connection details remain restricted. Existing contextual links remain supported.

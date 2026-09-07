@@ -130,6 +130,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", a.catalog)
 	mux.HandleFunc("GET /services/{slug}", a.detail)
 	mux.HandleFunc("GET /services/{slug}/open", a.direct)
+	mux.HandleFunc("GET /services/{slug}/signup", a.externalSignup)
 	mux.HandleFunc("GET /out/{id}", a.out)
 	mux.HandleFunc("GET /media/{id}", a.media)
 	mux.HandleFunc("GET /account/security", a.security)
@@ -349,4 +350,15 @@ func (a *App) out(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	a.fail(w, r, 404, "This destination is unavailable.")
+}
+
+func (a *App) externalSignup(w http.ResponseWriter, r *http.Request) {
+	v := a.findService(r.PathValue("slug"))
+	if v != nil {
+		if permitted := a.Store.permitted(a.current(r), *v); permitted != nil && permitted.ExternalPortal != nil {
+			http.Redirect(w, r, permitted.ExternalPortal.URL, 302)
+			return
+		}
+	}
+	a.fail(w, r, 404, "This signup destination is unavailable.")
 }

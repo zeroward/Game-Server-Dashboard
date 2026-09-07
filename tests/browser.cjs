@@ -103,6 +103,16 @@ async function a11y(page, name) {
       assert.equal(await friend.getByLabel('Username', {exact:true}).inputValue(), 'test-friend');
       await login(friend, 'test-friend');
     });
+    await check('external signup portal is editable and available before recorded access',async()=>{
+      await page.goto(base+'/admin/services/1');await page.getByLabel('Access mode').selectOption('external');
+      await page.getByLabel('Signup portal URL',{exact:true}).fill('https://signup.example.invalid/wow');await page.getByLabel('Signup button label',{exact:true}).fill('Create your WoW account');
+      await page.getByLabel('Who can open the signup portal?').selectOption('member');
+      await page.getByRole('button',{name:'Save service',exact:true}).click();await page.goto(base+'/admin/services/1');assert.equal(await page.getByLabel('Signup portal URL',{exact:true}).inputValue(),'https://signup.example.invalid/wow');
+      await friend.goto(base+'/services/world-of-warcraft');await friend.getByRole('link',{name:'Create your WoW account',exact:false}).waitFor();
+      const result=await friend.request.get(base+'/services/world-of-warcraft/signup',{maxRedirects:0});assert.equal(result.status(),302);assert.equal(result.headers().location,'https://signup.example.invalid/wow');
+      assert.equal(await friend.getByRole('button',{name:'Send access request',exact:true}).count(),0);
+    });
+
     let requestURL;
     await check('development request keeps restricted instructions private', async () => {
       await friend.goto(base + '/services/development-network');

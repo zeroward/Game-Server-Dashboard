@@ -21,28 +21,33 @@ type Field struct {
 }
 type Value struct{ Label, Value string }
 type ServiceConfig struct {
-	Type        string  `json:"type"`
-	Game        string  `json:"game"`
-	Summary     string  `json:"summary"`
-	Description string  `json:"description"`
-	Tags        string  `json:"tags"`
-	Artwork     string  `json:"artwork"`
-	FocalX      int     `json:"focal_x"`
-	FocalY      int     `json:"focal_y"`
-	Host        string  `json:"host"`
-	Port        string  `json:"port"`
-	Version     string  `json:"version"`
-	Platform    string  `json:"platform"`
-	Connection  string  `json:"connection"`
-	Custom      []Value `json:"custom"`
-	Guide       string  `json:"guide"`
-	Status      string  `json:"status"`
-	StatusAt    string  `json:"status_at"`
-	DirectLink  int     `json:"direct_link"`
-	Fields      []Field `json:"fields"`
-	Duration    bool    `json:"duration"`
+	ExternalPortalURL      string  `json:"external_portal_url"`
+	ExternalPortalLabel    string  `json:"external_portal_label"`
+	ExternalPortalAudience string  `json:"external_portal_audience"`
+	ExternalPortalNewTab   bool    `json:"external_portal_new_tab"`
+	Type                   string  `json:"type"`
+	Game                   string  `json:"game"`
+	Summary                string  `json:"summary"`
+	Description            string  `json:"description"`
+	Tags                   string  `json:"tags"`
+	Artwork                string  `json:"artwork"`
+	FocalX                 int     `json:"focal_x"`
+	FocalY                 int     `json:"focal_y"`
+	Host                   string  `json:"host"`
+	Port                   string  `json:"port"`
+	Version                string  `json:"version"`
+	Platform               string  `json:"platform"`
+	Connection             string  `json:"connection"`
+	Custom                 []Value `json:"custom"`
+	Guide                  string  `json:"guide"`
+	Status                 string  `json:"status"`
+	StatusAt               string  `json:"status_at"`
+	DirectLink             int     `json:"direct_link"`
+	Fields                 []Field `json:"fields"`
+	Duration               bool    `json:"duration"`
 }
 type Service struct {
+	ExternalPortal            *Link
 	Supportable               bool
 	Recommended               bool
 	Requestable               bool

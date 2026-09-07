@@ -28,6 +28,9 @@ if (tokenInput) {
 }
 const editor = document.querySelector('#service-editor');
 if (editor) {
+  const portalFields = document.querySelector('#external-portal-fields');
+  const showPortal = () => { if (portalFields) portalFields.hidden = editor.elements.mode.value !== 'external'; };
+  editor.elements.mode.addEventListener('change', showPortal); showPortal();
   const update = () => {
     document.querySelector('#preview-name').textContent = editor.elements.name.value || 'Your service';
     document.querySelector('#preview-art-title').textContent = editor.elements.name.value || 'Your service';

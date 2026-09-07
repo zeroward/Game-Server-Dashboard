@@ -11,7 +11,7 @@
 <section class="panel">
 <h2>Welcome in.</h2>
 <div class="markdown">{{$s.HTML}}</div>{{if $s.Config.Status}}<p class="manual-status">
-<span class="badge status-{{$s.Config.Status}}">{{$s.Config.Status}}</span> Manually updated {{date $s.Config.StatusAt}}</p>{{end}}<div class="actions">{{template "links" $s.Links}}</div>{{if eq $s.Mode "external"}}<p class="muted">Access is managed in the external portal. Your Waypoint membership does not create an external account.</p>{{if not $s.Links}}<p class="notice">The portal destination has not been configured yet.</p>{{end}}{{else if eq $s.Mode "info"}}<p class="muted">No access request is needed in this portal.</p>{{end}}</section>{{if $s.Details}}<section class="panel">
+<span class="badge status-{{$s.Config.Status}}">{{$s.Config.Status}}</span> Manually updated {{date $s.Config.StatusAt}}</p>{{end}}<div class="actions">{{template "external-portal-action" $s}}{{template "links" $s.Links}}</div>{{if eq $s.Mode "external"}}<p class="muted">Access is managed in the external portal. Your Waypoint membership does not create an external account.</p>{{if and (not $s.ExternalPortal) (not $s.Links)}}{{if .User}}{{if eq .User.Role "admin"}}<p class="notice">Set the signup portal URL in this service’s editor.</p>{{else}}<p class="notice">Contact an administrator for signup instructions.</p>{{end}}{{end}}{{end}}{{else if eq $s.Mode "info"}}<p class="muted">No access request is needed in this portal.</p>{{end}}</section>{{if $s.Details}}<section class="panel">
 <h2>Help me connect</h2>
 <dl class="connection-list">{{if $s.Config.Host}}<div>
 <dt>Hostname / IP</dt>
@@ -227,7 +227,7 @@
 <h2>{{.ServiceName}}</h2>
 <p class="muted">Recorded {{date .Granted}}{{if .Expires}} · Expires {{date .Expires}}{{end}}</p>{{if .NextSteps}}<h3>Your next steps</h3>
 <p class="preserve">{{.NextSteps}}</p>{{end}}{{if .Service}}<a class="resource" href="/services/{{.Service.Slug}}">Setup & details →</a>
-<div class="actions">{{template "links" .Service.Links}}</div>{{else}}<p class="muted">This service is no longer published. This record remains for your history.</p>{{end}}</section>{{else}}<section class="panel">
+<div class="actions">{{template "external-portal-action" .Service}}{{template "links" .Service.Links}}</div>{{else}}<p class="muted">This service is no longer published. This record remains for your history.</p>{{end}}</section>{{else}}<section class="panel">
 <h2>Room for something new.</h2>
 <p class="muted">Your manually recorded access will appear here after setup is fulfilled.</p>
 <a class="resource" href="/">Explore services →</a>
@@ -237,7 +237,7 @@
 <h3>{{.Name}}</h3>
 <span class="badge">Externally managed</span>
 <p>{{.Config.Summary}}</p>
-<a class="resource" href="/services/{{.Slug}}">View service →</a>
+<div class="actions">{{template "external-portal-action" .}}<a class="resource" href="/services/{{.Slug}}">View service →</a></div>
 </section>{{end}}</div>{{end}}{{end}}
 {{define "notifications"}}<div class="section-heading">
 <div class="page-heading">
@@ -267,3 +267,5 @@
 <p class="muted">This does not grant service access.</p>
 <a href="/admin/members">Back to members →</a>
 </section>{{end}}
+
+{{define "external-portal-action"}}{{if .ExternalPortal}}<a class="button" href="/services/{{.Slug}}/signup" {{if .ExternalPortal.NewTab}}target="_blank" rel="noopener noreferrer"{{end}}>{{.ExternalPortal.Label}} ↗</a>{{end}}{{end}}

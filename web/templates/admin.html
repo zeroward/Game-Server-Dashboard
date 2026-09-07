@@ -85,6 +85,14 @@
 <option value="external" {{if eq $s.Mode "external"}}selected{{end}}>Handled in an external portal</option>
 </select>
 </label>
+<fieldset id="external-portal-fields"><legend>External signup portal</legend>
+<p class="muted">Used when access is handled in an external portal. Enter the deployed signup/account portal URL, not its source repository. Additional resources can still be managed under Links.</p>
+<label>Signup portal URL<input type="url" name="external_portal_url" value="{{$s.Config.ExternalPortalURL}}" maxlength="2048" placeholder="https://accounts.example.com"></label>
+<label>Signup button label<input name="external_portal_label" value="{{$s.Config.ExternalPortalLabel}}" maxlength="80" placeholder="Open signup portal"></label>
+<label>Who can open the signup portal?<select name="external_portal_audience">{{range audiences}}<option value="{{.}}" {{if or (eq $s.Config.ExternalPortalAudience .) (and (not $s.Config.ExternalPortalAudience) (eq . "member"))}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+<p class="muted">The service and category audience rules also apply. Choose member to let signed-in friends register before they have recorded access. Access uses this service’s associated access record. This setting is independent of restricted connection details.</p>
+<label class="checkbox"><input type="checkbox" name="external_portal_new_tab" {{if $s.Config.ExternalPortalNewTab}}checked{{end}}> Open signup in a new tab</label>
+</fieldset>
 <div class="form-grid">
 <label>Who can discover this service?<select name="audience">{{range audiences}}<option {{if eq $s.Audience .}}selected{{end}}>{{.}}</option>{{end}}</select>
 </label>
