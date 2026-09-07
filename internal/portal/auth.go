@@ -39,7 +39,7 @@ func (s *Store) User(id int) *User {
 }
 func (a *App) current(r *http.Request) *User {
 	id := a.Sessions.GetInt(r.Context(), "user")
-	if id == 0 {
+	if id == 0 || !a.Sessions.GetBool(r.Context(), "mfa") {
 		return nil
 	}
 	u := a.Store.User(id)
@@ -74,6 +74,12 @@ func (s *Store) CreateAdmin(username, password string) error {
 	})
 }
 func (s *Store) Recover(username, password string) error {
+	return s.recoverAccount(username, password, false)
+}
+func (s *Store) RecoverFactors(username, password string) error {
+	return s.recoverAccount(username, password, true)
+}
+func (s *Store) recoverAccount(username, password string, resetFactors bool) error {
 	h, e := passwordHash(password)
 	if e != nil {
 		return e
@@ -88,6 +94,14 @@ func (s *Store) Recover(username, password string) error {
 		}
 		if _, e := tx.Exec("UPDATE tokens SET consumed=? WHERE user_id=? AND consumed IS NULL", now(), id); e != nil {
 			return e
+		}
+		if resetFactors {
+			if e := clearFactors(tx, id); e != nil {
+				return e
+			}
+			if _, e := tx.Exec("UPDATE users SET enrollment_locked=0 WHERE id=?", id); e != nil {
+				return e
+			}
 		}
 		return audit(tx, 0, "local administrator recovery", idTarget("user", id))
 	})
@@ -104,6 +118,9 @@ func validUsername(s string) bool {
 	return true
 }
 func (s *Store) IssueToken(actor int, kind, username, email string, userID int, recommendations ...int) (string, error) {
+	return s.issueToken(actor, kind, username, email, userID, nil, recommendations...)
+}
+func (s *Store) issueToken(actor int, kind, username, email string, userID int, delivery func(*sql.Tx, string, string, int) error, recommendations ...int) (string, error) {
 	if kind != "invite" && kind != "reset" {
 		return "", errors.New("Invalid token type")
 	}
@@ -146,6 +163,11 @@ func (s *Store) IssueToken(actor int, kind, username, email string, userID int, 
 				}
 			}
 		}
+		if delivery != nil {
+			if e := delivery(tx, t, email, userID); e != nil {
+				return e
+			}
+		}
 		return audit(tx, actor, "issue "+kind, "membership")
 	})
 	return t, e
@@ -171,7 +193,7 @@ func (s *Store) Redeem(token, password string) error {
 				return e
 			}
 		} else {
-			res, e := tx.Exec("UPDATE users SET password=?,generation=generation+1 WHERE id=? AND enabled=1", h, uid.Int64)
+			res, e := tx.Exec("UPDATE users SET password=?,generation=generation+1,enrollment_locked=CASE WHEN ?='factor' THEN 0 ELSE enrollment_locked END WHERE id=? AND enabled=1", h, kind, uid.Int64)
 			if e != nil {
 				return e
 			}
@@ -213,7 +235,7 @@ func (a *App) auth(w http.ResponseWriter, r *http.Request) {
 		kind = "login"
 	}
 	p.AdminTab = kind
-	if !includes([]string{"login", "redeem", "password", "logout"}, kind) {
+	if !includes([]string{"login", "redeem", "password", "logout", "recovery"}, kind) {
 		a.fail(w, r, 404, "Account page unavailable")
 		return
 	}
@@ -238,12 +260,16 @@ func (a *App) auth(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, r, 429, "Too many attempts. Please try again in 15 minutes.")
 		return
 	}
+	if (kind == "login" || kind == "recovery") && a.Store.Limited("auth-user:"+hashToken(strings.ToLower(strings.TrimSpace(r.FormValue("username")))), 20, 15*time.Minute) {
+		a.fail(w, r, 429, "Too many attempts. Try again later.")
+		return
+	}
 	var err error
 	switch kind {
 	case "login":
-		var id int
+		var id, generation int
 		var h string
-		err = a.Store.DB.QueryRow("SELECT id,password FROM users WHERE username=? AND enabled=1", strings.TrimSpace(r.FormValue("username"))).Scan(&id, &h)
+		err = a.Store.DB.QueryRow("SELECT id,password,generation FROM users WHERE username=? AND enabled=1", strings.TrimSpace(r.FormValue("username"))).Scan(&id, &h, &generation)
 		if err == nil {
 			var ok bool
 			ok, err = argon2id.ComparePasswordAndHash(r.FormValue("password"), h)
@@ -253,13 +279,34 @@ func (a *App) auth(w http.ResponseWriter, r *http.Request) {
 		}
 		if err == nil {
 			u := a.Store.User(id)
-			a.Sessions.RenewToken(r.Context())
-			a.Sessions.Put(r.Context(), "user", id)
-			a.Sessions.Put(r.Context(), "generation", u.Generation)
-			http.Redirect(w, r, "/", 303)
+			if u == nil || !u.Enabled || u.Generation != generation {
+				err = ErrConflict
+				break
+			}
+			var locked bool
+			a.Store.DB.QueryRow("SELECT enrollment_locked FROM users WHERE id=?", id).Scan(&locked)
+			if locked {
+				err = errors.New("Use your administrator-provided recovery link")
+				break
+			}
+			mode := "verify"
+			enabled, keys := a.factors(u.ID)
+			if !enabled && keys == 0 {
+				mode = "enroll"
+			}
+			if err = a.pending(r, u, mode); err != nil {
+				break
+			}
+			http.Redirect(w, r, "/account/security", 303)
 			return
 		}
 		err = errors.New("Invalid username or password.")
+	case "recovery":
+		err = a.recoveryLogin(r)
+		if err == nil {
+			http.Redirect(w, r, "/account/security", 303)
+			return
+		}
 	case "redeem":
 		err = a.Store.Redeem(r.FormValue("token"), r.FormValue("password"))
 		if err == nil {
@@ -274,6 +321,10 @@ func (a *App) auth(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/account/login", 303)
 		return
 	case "password":
+		if !a.recent(r) {
+			http.Redirect(w, r, "/account/security", 303)
+			return
+		}
 		if p.User == nil {
 			a.fail(w, r, 403, "Sign in to change your password.")
 			return

@@ -363,7 +363,7 @@ func TestPackMigrationFromV2(t *testing.T) {
 	if e = s.Migrate(); e != nil {
 		t.Fatal(e)
 	}
-	if count(t, s, "SELECT max(version) FROM migrations") != 3 || count(t, s, "SELECT count(*) FROM users WHERE username='old-owner'") != 1 {
+	if count(t, s, "SELECT max(version) FROM migrations") != len(schemaMigrations) || count(t, s, "SELECT count(*) FROM users WHERE username='old-owner'") != 1 {
 		t.Fatal("migration lost existing data")
 	}
 }

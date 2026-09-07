@@ -17,7 +17,7 @@ def docker(*args, check=True, input=None):
 for case in ("upgrade-v1", "upgrade-v2", "failed-migration", "newer-schema"):
     name = "waypoint-startup-" + secrets.token_hex(5)
     volume = name + "-data"
-    version = 2 if case == "upgrade-v2" else 4 if case == "newer-schema" else 1
+    version = 2 if case == "upgrade-v2" else 5 if case == "newer-schema" else 1
     sql = schema + (vpn if version >= 2 else "") + (packs if version >= 3 else "")
     sql += "CREATE TABLE migrations(version INTEGER PRIMARY KEY);"
     sql += "".join("INSERT INTO migrations VALUES(%d);" % n for n in range(1, version + 1))
@@ -65,7 +65,7 @@ db.close()
         if case=="failed-migration":
             queries+=["SELECT count(*) FROM sqlite_master WHERE name='vpn_devices'","SELECT legacy FROM vpn_grants"]
         values=db({"queries":queries})
-        assert values[queries[0]]==[[version if expected_failure else 3]]
+        assert values[queries[0]]==[[version if expected_failure else 4]]
         assert values[queries[1]]==[["preserve on startup"]]
         if case=="failed-migration":
             assert values[queries[2]]==[[0]] and values[queries[3]]==[["existing content"]]

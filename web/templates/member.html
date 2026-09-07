@@ -107,7 +107,7 @@
 <label>New password<input type="password" name="password" required minlength="12" maxlength="256" autocomplete="new-password">
 </label>
 <button>Set password</button>
-</form>{{else if eq .AdminTab "password"}}<h2>Change your password</h2>
+</form>{{else if eq .AdminTab "recovery"}}<h2>Use a recovery code</h2><p>This signs out all sessions and resets your login methods. You must enroll a replacement before accessing the portal.</p><form method="post">{{.CSRF}}<label>Username<input name="username" autocomplete="username" required></label><label>Recovery code<input name="code" autocomplete="off" required></label><button>Recover account</button></form>{{else if eq .AdminTab "password"}}<h2>Change your password</h2>
 <form method="post" action="/account/password">{{.CSRF}}<label>Current password<input type="password" name="current_password" autocomplete="current-password" required>
 </label>
 <label>New password<input type="password" name="password" minlength="12" maxlength="256" autocomplete="new-password" required>
@@ -124,7 +124,7 @@
 <button>Sign in <span aria-hidden="true">→</span>
 </button>
 </form>
-<p class="small-text muted">Invitation only. Need an invite or a password reset? Ask your administrator for a private link.</p>{{end}}</section>
+<button type="button" data-passkey="login">Sign in with a passkey</button><div id="passkey-status" role="status" aria-live="polite"></div><a href="/account/recovery">Use a recovery code</a><p class="small-text muted">Invitation only. Need an invite or a password reset? Ask your administrator for a private link.</p>{{end}}</section>
 </div>{{end}}
 {{define "requests"}}<div class="page-heading">
 <p class="eyebrow">KEEP IN TOUCH</p>

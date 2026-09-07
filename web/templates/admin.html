@@ -1,6 +1,6 @@
 {{define "admin"}}<div class="admin-layout">
 <aside class="admin-nav">
-<p class="eyebrow">ADMINISTRATION</p>{{range list "requests" "services" "categories" "links" "members" "access" "followups" "announcements" "settings" "audit"}}<a href="/admin/{{.}}" {{if eq $.AdminTab .}}aria-current="page"{{end}}>{{.}}</a>{{end}}{{if .VPNEnabled}}<a href="/admin/vpn">network access</a>{{end}}</aside>
+<p class="eyebrow">ADMINISTRATION</p>{{range list "requests" "services" "categories" "links" "members" "access" "followups" "announcements" "settings" "email" "audit"}}<a href="/admin/{{.}}" {{if eq $.AdminTab .}}aria-current="page"{{end}}>{{.}}</a>{{end}}{{if .VPNEnabled}}<a href="/admin/vpn">network access</a>{{end}}</aside>
 <div class="admin-content">
 <div class="page-heading">
 <p class="eyebrow">YOUR COMMUNITY, THOUGHTFULLY MANAGED</p>
@@ -284,10 +284,10 @@
 <input type="checkbox" name="confirm">Confirm permission changes</label>
 <button>Save member</button>
 </form>
-<form class="panel" method="post" action="/admin/reset">{{.CSRF}}<input type="hidden" name="user_id" value="{{$u.ID}}">
+<form class="panel" method="post" action="/admin/factor-reset">{{.CSRF}}<input type="hidden" name="user_id" value="{{$u.ID}}"><h3>Lost all authenticators?</h3><p>Verify this member’s identity outside the portal before resetting their login methods. This invalidates existing sessions and creates a one-hour setup link.</p><label><input type="checkbox" name="confirm" required> I verified their identity and confirm resetting their factors</label><button data-confirm="Reset this member’s login factors?">Reset login factors</button></form><form class="panel" method="post" action="/admin/reset">{{.CSRF}}<input type="hidden" name="user_id" value="{{$u.ID}}">
 <h2>Administrator-assisted recovery</h2>
 <p>Generate a single-use link for private delivery. Issuing a new link invalidates previous links.</p>
-<button class="secondary">Create password reset link</button>
+<button class="secondary">Create password reset link</button><button name="delivery" value="email">Email password reset</button>
 </form>{{else}}<details class="panel" open>
 <summary>Invite a friend</summary>
 <form method="post" action="/admin/invite">{{.CSRF}}<div class="form-grid">
@@ -298,8 +298,8 @@
 </div>
 <label>Recommend services (optional; recommendations never grant access)<select name="recommend" multiple size="4">{{range .Services}}{{if not .Archived}}<option value="{{.ID}}">{{.Name}}</option>{{end}}{{end}}</select>
 </label>
-<p class="muted">Invitations create members without service access. No email is sent; copy the private link after creating it.</p>
-<button>Create invitation link</button>
+<p class="muted">Invitations create members without service access. Copy a private link, or send it using configured SMTP.</p>
+<button>Create invitation link</button><button name="delivery" value="email">Email invitation</button>
 </form>
 </details>
 <details class="panel">

@@ -8,6 +8,7 @@ services:
       APP_ENV: production
       BASE_URL: https://${TUNNEL_HOSTNAME:?Set TUNNEL_HOSTNAME to your portal hostname without a scheme or path}
       DATA_DIR: /data
+      ACCOUNT_SECRETS_DIR: /secrets
       LISTEN_ADDR: 0.0.0.0:8080
       TRUSTED_PROXIES: ${TUNNEL_CONNECTOR_IP:-172.30.250.2}/32
       VPN_ENABLED: "true"
@@ -16,6 +17,7 @@ services:
       VPN_ENDPOINT: ${VPN_ENDPOINT:?Set VPN_ENDPOINT to your reachable WireGuard host:UDP-port}
     volumes:
       - waypoint-data:/data
+      - portal-secrets:/secrets
       - vpn-control:/control
       - vpn-delivery:/delivery
     networks:
@@ -121,6 +123,7 @@ services:
       - ./test-results:/work/test-results
     entrypoint: ["node", "/work/tests/browser.cjs"]
 volumes:
+  portal-secrets:
   waypoint-data:
   vpn-control:
   vpn-gateway:

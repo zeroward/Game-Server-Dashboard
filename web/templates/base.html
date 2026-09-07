@@ -6,6 +6,7 @@
 <meta name="color-scheme" content="dark">
 <title>{{.Title}} · {{.Settings.Name}}</title>
 <link rel="stylesheet" href="/static/app.css">
+<script src="/static/security.js" defer></script>
 <script src="/static/app.js" defer>
 </script>
 </head>
@@ -38,13 +39,13 @@
 <details class="account-menu">
 <summary aria-label="Account menu">{{.User.Username}} <span>⌄</span>
 </summary>
-<div class="menu">{{if eq .User.Role "admin"}}<a href="/admin">Administration</a>{{end}}<a href="/account/password">Change password</a>
+<div class="menu">{{if eq .User.Role "admin"}}<a href="/admin">Administration</a>{{end}}<a href="/account/security">Account security</a><a href="/account/password">Change password</a>
 <form method="post" action="/account/logout">{{.CSRF}}<button class="text-button">Sign out</button>
 </form>
 </div>
 </details>{{else}}<a href="/account/login">Sign in</a>{{end}}</div>
 </header>
-<main id="main" tabindex="-1">{{if .Success}}<div class="flash" role="status">{{.Success}}</div>{{end}}{{if and .Error (ne .View "error")}}<div class="flash error" role="alert">{{.Error}}</div>{{end}}{{if eq .View "catalog"}}{{template "catalog" .}}{{else if eq .View "service"}}{{template "service" .}}{{else if eq .View "auth"}}{{template "auth" .}}{{else if eq .View "requests"}}{{template "requests" .}}{{else if eq .View "request"}}{{template "request" .}}{{else if eq .View "access"}}{{template "access" .}}{{else if eq .View "notifications"}}{{template "notifications" .}}{{else if eq .View "devices"}}{{template "devices" .}}{{else if eq .View "admin"}}{{template "admin" .}}{{else if eq .View "token"}}{{template "token" .}}{{else if eq .View "preview"}}<div class="notice">Read-only {{.Preview}} preview. <a href="/admin/services">Return to editor</a>
+<main id="main" tabindex="-1">{{if .Success}}<div class="flash" role="status">{{.Success}}</div>{{end}}{{if and .Error (ne .View "error")}}<div class="flash error" role="alert">{{.Error}}</div>{{end}}{{if eq .View "security"}}{{template "security" .}}{{else if eq .View "email-admin"}}{{template "email-admin" .}}{{else if eq .View "verify-email"}}{{template "verify-email" .}}{{else if eq .View "catalog"}}{{template "catalog" .}}{{else if eq .View "service"}}{{template "service" .}}{{else if eq .View "auth"}}{{template "auth" .}}{{else if eq .View "requests"}}{{template "requests" .}}{{else if eq .View "request"}}{{template "request" .}}{{else if eq .View "access"}}{{template "access" .}}{{else if eq .View "notifications"}}{{template "notifications" .}}{{else if eq .View "devices"}}{{template "devices" .}}{{else if eq .View "admin"}}{{template "admin" .}}{{else if eq .View "token"}}{{template "token" .}}{{else if eq .View "preview"}}<div class="notice">Read-only {{.Preview}} preview. <a href="/admin/services">Return to editor</a>
 </div>{{if .Service}}{{template "service" .}}{{else}}<div class="empty">
 <h1>Not discoverable</h1>
 <p>This audience cannot discover this service.</p>

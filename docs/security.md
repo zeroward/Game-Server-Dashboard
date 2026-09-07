@@ -66,3 +66,9 @@ The default Compose stack runs a pinned non-root connector with no capabilities,
 ## Automatic startup migrations
 
 The portal opens no HTTP listener or control socket until pending migrations commit. The migration ledger is read after acquiring a SQLite write lock; schema and ledger changes roll back together on failure. Newer unsupported schemas are refused. Back up before upgrading, and restore a matching backup before downgrading. Bootstrap stays interactive and local; initialization never seeds demo users or grants.
+
+## Required login methods and SMTP
+
+See [account and email operations](accounts-email.md). Full sessions require passkey user verification or password plus TOTP. Enrollment and recovery sessions are short-lived and cannot authorize member/admin routes or protected media. Authentication challenges are server-side, bound to their session and purpose, expiring and consumed transactionally. TOTP replay is checked transactionally. Recovery tokens/codes are hashed; TOTP and queued email secrets use authenticated encryption with a separate portal-only key volume. SMTP never bypasses MFA. Recovery codes reset factors; password resets preserve them.
+
+SMTP configuration is restricted to recently authenticated administrators and certificate verification is mandatory. The administrator deliberately chooses the SMTP destination, including an internal relay; untrusted members cannot choose server connections. Logs and delivery status omit credentials and message contents. Mail contains generic updates and authorized portal links. Operators must trust their SMTP provider with invitations and reset links.

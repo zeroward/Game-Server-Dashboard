@@ -1,3 +1,4 @@
+import base64, hmac, hashlib, struct
 """Operator-side disposable container test; never included in the running application."""
 import base64
 import io
@@ -38,6 +39,8 @@ def interactive(*args):
     if args == ("admin", "create"):
         prompts.append((b"Administrator username: ", b"smoke-owner\n"))
     prompts.extend([(b"Password (12+ characters): ", password.encode() + b"\n"), (b"Repeat password: ", password.encode() + b"\n")])
+    if args[1] == "recover":
+        prompts.append((b"keep them: ", b"RESET\n"))
     buffer = b""
     deadline = time.monotonic() + 30
     try:
@@ -70,6 +73,16 @@ def signin(opener, base):
     body, _ = request(opener, base, "/account/login")
     token = re.search(r'name="gorilla.csrf.Token" value="([^"]+)"', body).group(1)
     body, _ = request(opener, base, "/account/login", {"username": "smoke-owner", "password": password, "gorilla.csrf.Token": token})
+    if 'Before entering Waypoint' in body:
+        body, _ = request(opener, base, "/account/security", {"action":"totp-start", "gorilla.csrf.Token":token})
+        secret=re.search(r'id="totp-secret">([^<]+)',body).group(1)
+        counter=struct.pack('>Q',int(time.time())//30)
+        digest=hmac.new(base64.b32decode(secret+'='*((8-len(secret)%8)%8)),counter,hashlib.sha1).digest()
+        offset=digest[-1]&15
+        code=str((struct.unpack('>I',digest[offset:offset+4])[0]&0x7fffffff)%1000000).zfill(6)
+        body, _ = request(opener, base, "/account/security", {"action":"totp-confirm", "code":code,"gorilla.csrf.Token":token})
+        assert 'Save your recovery codes' in body, 'Authenticator enrollment failed'
+        body, _=request(opener,base,'/')
     assert "Make yourself at home" in body, "Sign in failed"
 
 try:

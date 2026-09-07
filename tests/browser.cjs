@@ -1,24 +1,37 @@
 'use strict';
 const { chromium } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
-const { randomBytes } = require('node:crypto');
+const { randomBytes, createHmac } = require('node:crypto');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const assert = require('node:assert/strict');
-const base = 'http://127.0.0.1:8088';
+const base = 'http://localhost:8088';
 const password = randomBytes(24).toString('hex');
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'waypoint-e2e-'));
 const server = spawn(process.env.E2E_SERVER || '/testserver', [], { env: { ...process.env, E2E_DATA_DIR: directory, E2E_PASSWORD: password }, stdio: ['ignore', 'ignore', 'pipe'] });
 let errors = ''; server.stderr.on('data', b => { errors += b.toString(); });
 const results = [];
 async function check(name, fn) { await fn(); results.push(name); console.log(`PASS ${name}`); }
+function totpCode(secret) {
+ const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';let bits='';for(const c of secret.replace(/=/g,''))bits+=alphabet.indexOf(c).toString(2).padStart(5,'0');
+ const key=Buffer.from(bits.match(/.{8}/g).map(b=>parseInt(b,2)));const counter=Buffer.alloc(8);counter.writeBigUInt64BE(BigInt(Math.floor(Date.now()/30000)));
+ const mac=createHmac('sha1',key).update(counter).digest();const offset=mac[19]&15;return ((mac.readUInt32BE(offset)&0x7fffffff)%1000000).toString().padStart(6,'0');
+}
 async function login(page, username) {
   await page.goto(base + '/account/login');
   await page.getByLabel('Username', { exact: true }).fill(username);
   await page.getByLabel('Password', { exact: true }).fill(password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  if (new URL(page.url()).pathname === '/account/security') {
+    await page.getByRole('button', {name:'Set up authenticator',exact:true}).click();
+    const secret=await page.locator('#totp-secret').innerText();
+    await page.getByLabel('Authenticator code',{exact:true}).fill(totpCode(secret));
+    await page.getByRole('button',{name:'Confirm authenticator',exact:true}).click();
+    await page.getByRole('heading',{name:'Save your recovery codes'}).waitFor();
+    await page.goto(base+'/');
+  }
   if (new URL(page.url()).pathname !== '/') { await page.screenshot({path:'/work/test-results/login-failure.png'}); throw new Error('Login failed: ' + await page.locator('#main').innerText()); }
 }
 async function a11y(page, name) {
@@ -243,6 +256,41 @@ async function a11y(page, name) {
       await friend.screenshot({ path: '/work/test-results/catalog-mobile.png', fullPage: true });
       await friend.goto(base + '/my-access');
       assert.equal(await friend.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    });
+    await check('passkey enrollment, direct login and required user verification', async () => {
+      await page.goto(base+'/account/security');
+      const cdp=await owner.newCDPSession(page);await cdp.send('WebAuthn.enable');
+      const {authenticatorId}=await cdp.send('WebAuthn.addVirtualAuthenticator',{options:{protocol:'ctap2',transport:'internal',hasResidentKey:true,hasUserVerification:true,isUserVerified:true,automaticPresenceSimulation:true}});
+      await page.getByLabel('Passkey name').fill('Browser test passkey');await page.getByRole('button',{name:'Add a passkey',exact:true}).click();
+      try { await page.getByText('Browser test passkey',{exact:true}).waitFor({timeout:10000}); } catch(e) { throw new Error('Passkey enrollment: '+await page.locator('#passkey-status').innerText()); }
+      await a11y(page,'account security desktop');await page.screenshot({path:'/work/test-results/security-desktop.png',fullPage:true});
+      await page.setViewportSize({width:390,height:844});await a11y(page,'account security mobile');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'/work/test-results/security-mobile.png',fullPage:true});await page.setViewportSize({width:1440,height:1000});
+      await page.locator('#main').getByRole('button',{name:'Sign out',exact:true}).click();
+      await cdp.send('WebAuthn.setUserVerified',{authenticatorId,isUserVerified:false});
+      await page.getByRole('button',{name:'Sign in with a passkey',exact:true}).click();
+      await page.locator('#passkey-status').filter({hasText:/failed|cancelled|timed out/}).waitFor();assert.ok(page.url().includes('/account/login'));
+      await cdp.send('WebAuthn.setUserVerified',{authenticatorId,isUserVerified:true});
+      await page.getByRole('button',{name:'Sign in with a passkey',exact:true}).click();await page.waitForURL(base+'/');
+      await page.goto(base+'/admin/email');await a11y(page,'email administration');
+      await page.goto(base+'/account/security');
+      await page.route('**/account/passkeys/login-finish',async route=>{
+        const body=route.request().postDataJSON();const client=JSON.parse(Buffer.from(body.response.clientDataJSON,'base64url').toString());client.origin='https://attacker.invalid';body.response.clientDataJSON=Buffer.from(JSON.stringify(client)).toString('base64url');await route.continue({postData:JSON.stringify(body)});
+      });
+      await page.getByRole('button',{name:'Sign out',exact:true}).last().click();
+      await page.getByRole('button',{name:'Sign in with a passkey',exact:true}).click();await page.locator('#passkey-status').filter({hasText:/failed/}).waitFor();
+      assert.ok(page.url().includes('/account/login'));await page.unroute('**/account/passkeys/login-finish');
+      await page.getByRole('button',{name:'Sign in with a passkey',exact:true}).click();await page.waitForURL(base+'/');
+
+    });
+    await check('passkey-only onboarding, recovery-code delivery and no password bypass',async()=>{
+      await page.goto(base+'/admin/members');await page.getByLabel('Reserved username').fill('passkey-friend');await page.getByRole('button',{name:'Create invitation link',exact:true}).click();const invitation=await page.getByLabel('Single-use link').inputValue();
+      const context=await browser.newContext();const newcomer=await context.newPage();await newcomer.goto(invitation);await newcomer.getByLabel('New password',{exact:true}).fill(password);await newcomer.getByRole('button',{name:'Set password',exact:true}).click();
+      await newcomer.getByLabel('Username',{exact:true}).fill('passkey-friend');await newcomer.getByLabel('Password',{exact:true}).fill(password);await newcomer.getByRole('button',{name:'Sign in',exact:true}).click();
+      const cdp=await context.newCDPSession(newcomer);await cdp.send('WebAuthn.enable');await cdp.send('WebAuthn.addVirtualAuthenticator',{options:{protocol:'ctap2',transport:'internal',hasResidentKey:true,hasUserVerification:true,isUserVerified:true,automaticPresenceSimulation:true}});
+      await newcomer.getByLabel('Passkey name').fill('My laptop');await newcomer.getByRole('button',{name:'Add a passkey',exact:true}).click();await newcomer.getByRole('link',{name:'I’ve saved my codes — continue'}).waitFor();assert.equal(await newcomer.locator('#recovery-codes code').count(),10);await newcomer.getByRole('link',{name:'I’ve saved my codes — continue'}).click();
+      await newcomer.locator('#main').getByRole('button',{name:'Sign out',exact:true}).click();await newcomer.getByLabel('Username',{exact:true}).fill('passkey-friend');await newcomer.getByLabel('Password',{exact:true}).fill(password);await newcomer.getByRole('button',{name:'Sign in',exact:true}).click();await newcomer.getByText('This account uses passkeys.',{exact:false}).waitFor();
+      await newcomer.goto(base+'/admin');assert.equal(await newcomer.getByText('YOUR COMMUNITY, THOUGHTFULLY MANAGED',{exact:true}).count(),0);
+      await context.close();
     });
     await check('no browser JavaScript errors', async () => assert.deepEqual(pageErrors, []));
     fs.writeFileSync('/work/test-results/browser-results.json', JSON.stringify({ passed: results }, null, 2));

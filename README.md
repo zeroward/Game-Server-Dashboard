@@ -129,3 +129,11 @@ See [implementation status](docs/implementation-status.md) for checks actually e
 
 
 Friends can use **My Devices → Add device & request connection**, then download a one-time ZIP after administrator approval and gateway confirmation. Import the included `.conf` in WireGuard; no private-key knowledge is needed. Lost packs require replacement and fresh approval. Existing public-key enrollment remains under Advanced. See [VPN setup and delivery-key backup instructions](docs/vpn.md). Keep the new `vpn-delivery` volume persistent and portal-only.
+
+### Secure login and email
+
+Every account must set up a passkey or an authenticator on its next login. Existing sessions are signed out by the upgrade. Save the recovery codes shown during enrollment.
+
+Configure SMTP in **Administration → email**, then use **Email invitation** in Members. SMTP is optional and disabled until configured; copied invitation links still work. Users verify their email in **Account security** to receive notifications.
+
+Back up the new **portal-secrets** volume alongside your database. See [secure accounts and email](docs/accounts-email.md) for setup, recovery, delivery behavior, and hostname requirements.

@@ -18,6 +18,9 @@ var vpnSchema string
 //go:embed packs.sql
 var packsSchema string
 
+//go:embed security.sql
+var securitySchema string
+
 type Store struct{ DB *sql.DB }
 
 func Open(path string) (*Store, error) {
@@ -36,7 +39,7 @@ func Open(path string) (*Store, error) {
 }
 
 // The ordered embedded migrations are the single source of the supported version.
-var schemaMigrations = [...]string{schema, vpnSchema, packsSchema}
+var schemaMigrations = [...]string{schema, vpnSchema, packsSchema, securitySchema}
 
 func (s *Store) Migrate() error {
 	ctx := context.Background()

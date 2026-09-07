@@ -15,7 +15,7 @@ My Devices, automatic one-time importable connection packs (with advanced client
 ## Other possible extensions
 
 - External identity/OIDC using an established provider, with deliberate local account linking and recovery rules. Never reuse WoW GM ranks or database credentials.
-- Optional email, Discord, ntfy, or web-push notifications with minimal message content and the same authorization checks.
+- Discord, ntfy, or web-push notifications (SMTP email is implemented) with minimal message content and the same authorization checks.
 - Real read-only status integrations, explicitly identified as live and with timestamps/error states. Manual badges remain honest manual records.
 - Access bundles with explicit per-service review and external setup responsibilities.
 - Game-night calendars, polls, server wish lists, and lightweight social/community features.

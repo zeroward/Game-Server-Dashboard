@@ -25,6 +25,8 @@ func TestTunnelHTTPSProxyLoginAndOrigin(t *testing.T) {
 	client := edge.Client()
 	client.Jar, _ = cookiejar.New(nil)
 	body, status := post(t, client, edge.URL, "/account/login", url.Values{"username": {"alice"}, "password": {"a long test password"}})
+	enrollTestClient(t, client, edge.URL)
+	body, status = get(t, client, edge.URL+"/")
 	if status != 200 || !strings.Contains(body, "Make yourself at home") {
 		t.Fatal("HTTPS to HTTP proxy login failed", status)
 	}

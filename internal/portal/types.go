@@ -110,6 +110,8 @@ type Settings struct {
 	Logo                      string
 }
 type Page struct {
+	Security                              *SecurityPage
+	Mail                                  *MailPage
 	VPNEnabled                            bool
 	VPN                                   *VPNPage
 	Title, View, Error, Success, TokenURL string

@@ -96,6 +96,12 @@ func run() error {
 		if action == "create" {
 			return s.CreateAdmin(username, string(password))
 		}
+		fmt.Print("Reset lost passkeys and authenticators too? Type RESET to confirm, or press Enter to keep them: ")
+		var confirm string
+		fmt.Scanln(&confirm)
+		if confirm == "RESET" {
+			return s.RecoverFactors(username, string(password))
+		}
 		return s.Recover(username, string(password))
 	case "serve":
 	default:
@@ -116,7 +122,7 @@ func run() error {
 	if prod && !strings.HasPrefix(base, "https://") {
 		return fmt.Errorf("production requires an https:// BASE_URL")
 	}
-	cfg := portal.Config{VPNDeliveryDir: os.Getenv("VPN_DELIVERY_DIR"), VPNEnabled: os.Getenv("VPN_ENABLED") == "true", VPNControlDir: os.Getenv("VPN_CONTROL_DIR"), VPNEndpoint: os.Getenv("VPN_ENDPOINT"), DataDir: data, BaseURL: base, Addr: env("LISTEN_ADDR", "127.0.0.1:8080"), Production: prod, TrustedProxies: strings.Split(os.Getenv("TRUSTED_PROXIES"), ",")}
+	cfg := portal.Config{SecretsDir: os.Getenv("ACCOUNT_SECRETS_DIR"), VPNDeliveryDir: os.Getenv("VPN_DELIVERY_DIR"), VPNEnabled: os.Getenv("VPN_ENABLED") == "true", VPNControlDir: os.Getenv("VPN_CONTROL_DIR"), VPNEndpoint: os.Getenv("VPN_ENDPOINT"), DataDir: data, BaseURL: base, Addr: env("LISTEN_ADDR", "127.0.0.1:8080"), Production: prod, TrustedProxies: strings.Split(os.Getenv("TRUSTED_PROXIES"), ",")}
 	app, e := portal.New(s, cfg, web.Assets)
 	if e != nil {
 		return e
@@ -124,6 +130,7 @@ func run() error {
 	server := &http.Server{Addr: cfg.Addr, Handler: app.Handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	app.StartMail(ctx)
 	if e = app.StartVPNControl(ctx); e != nil {
 		return e
 	}

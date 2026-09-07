@@ -4,7 +4,7 @@
 
 The workspace was empty and had no usable Git history or project instructions. Go was selected by the operator. The application is a modular monolith with SQLite and server-rendered templates; browser JavaScript provides copy feedback, previews, and menu behavior. Canonical full-page details avoid modal/history complexity. Built-in abstract artwork keeps the release self-contained and avoids unlicensed game imagery.
 
-SCS provides server-side sessions; Argon2id provides password hashing; Gorilla CSRF protects mutations; Goldmark and Bluemonday render sanitized Markdown. SQL and server policies own authorization. No SPA payload contains raw service records. Templates and static assets are embedded in the Go binary; uploads remain in the persistent volume. Schema migration 1 installs the portal; migration 2 adds optional VPN device/network records and notification references. Migration 3 adds encrypted one-time device deliveries. All are transactional. Startup automatically runs pending migrations before opening HTTP or the control socket. Migration checks and changes share a BEGIN IMMEDIATE transaction; a lock timeout, failed migration, or unsupported newer schema stops startup without partial changes. The explicit migrate command remains available. Future schema changes must add a new versioned migration and preserve historical records.
+SCS provides server-side sessions; Argon2id provides password hashing; Gorilla CSRF protects mutations; Goldmark and Bluemonday render sanitized Markdown. SQL and server policies own authorization. No SPA payload contains raw service records. Templates and static assets are embedded in the Go binary; uploads remain in the persistent volume. Schema migration 1 installs the portal; migration 2 adds optional VPN device/network records and notification references. Migration 3 adds encrypted one-time device deliveries. Migration 4 adds mandatory login factors, verified email, SMTP settings and the transactional mail outbox, and invalidates old sessions. All are transactional. Startup automatically runs pending migrations before opening HTTP or the control socket. Migration checks and changes share a BEGIN IMMEDIATE transaction; a lock timeout, failed migration, or unsupported newer schema stops startup without partial changes. The explicit migrate command remains available. Future schema changes must add a new versioned migration and preserve historical records.
 
 ## Routes and contracts
 
@@ -36,26 +36,30 @@ Determine the volume name:
 
 ```sh
 docker volume ls --filter label=com.docker.compose.volume=waypoint-data
+docker volume ls --filter label=com.docker.compose.volume=portal-secrets
 ```
 
-Substitute that name for `PROJECT_waypoint-data`. Back up to a private operator directory:
+Substitute the names for `PROJECT_waypoint-data` and `PROJECT_portal-secrets`. Back up to a private operator directory:
 
 ```sh
 mkdir -m 700 backups
 docker compose stop portal
 docker run --rm -v PROJECT_waypoint-data:/data:ro -v "$PWD/backups:/backup" alpine:3.22 tar -czf /backup/waypoint-backup.tar.gz -C /data .
+docker run --rm -v PROJECT_portal-secrets:/secrets:ro -v "$PWD/backups:/backup" alpine:3.22 tar -czf /backup/waypoint-secrets.tar.gz -C /secrets .
 docker compose start portal
-chmod 600 backups/waypoint-backup.tar.gz
+chmod 600 backups/waypoint-backup.tar.gz backups/waypoint-secrets.tar.gz
 ```
 
 Restore to a **new empty volume**, with the old application stopped:
 
 ```sh
 docker volume create waypoint-restored
+docker volume create waypoint-secrets-restored
 docker run --rm -v waypoint-restored:/data -v "$PWD/backups:/backup:ro" alpine:3.22 tar -xzf /backup/waypoint-backup.tar.gz -C /data
+docker run --rm -v waypoint-secrets-restored:/secrets -v "$PWD/backups:/backup:ro" alpine:3.22 tar -xzf /backup/waypoint-secrets.tar.gz -C /secrets
 ```
 
-Point a separate Compose project at this restored volume, retaining UID/GID 65532 ownership, and allow startup to apply pending migrations. Verify account login, request history, uploaded artwork, and access expiry before substituting it for the original volume. Preserve the original until validation succeeds. Do not restore over a running database or use `docker compose down -v` against data you want to keep.
+Point a separate Compose project at both restored volumes, retaining UID/GID 65532 ownership, and allow startup to apply pending migrations. Verify account login, request history, uploaded artwork, and access expiry before substituting it for the original volume. Preserve the original until validation succeeds. Do not restore over a running database or use `docker compose down -v` against data you want to keep.
 
 ## Operational limits
 

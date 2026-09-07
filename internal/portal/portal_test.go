@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/pquerna/otp/totp"
 	"image"
 	"image/png"
 	"io"
@@ -662,6 +663,7 @@ func loginClient(t *testing.T, s *httptest.Server, name string) *http.Client {
 	jar, _ := cookiejar.New(nil)
 	c := &http.Client{Jar: jar}
 	post(t, c, s.URL, "/account/login", url.Values{"username": {name}, "password": {"a long test password"}})
+	enrollTestClient(t, c, s.URL)
 	return c
 }
 func post(t *testing.T, c *http.Client, base, path string, values url.Values) (string, int) {
@@ -693,6 +695,8 @@ func TestProductionCookiesAndOriginProtection(t *testing.T) {
 	c := server.Client()
 	c.Jar, _ = cookiejar.New(nil)
 	body, status := post(t, c, server.URL, "/account/login", url.Values{"username": {"alice"}, "password": {"a long test password"}})
+	enrollTestClient(t, c, server.URL)
+	body, status = get(t, c, server.URL+"/")
 	if status != 200 || !strings.Contains(body, "Make yourself at home") {
 		t.Fatal("HTTPS login failed", status)
 	}
@@ -968,4 +972,22 @@ func TestFulfillmentRollsBackOnSetupRecordFailure(t *testing.T) {
 	if len(s.Messages(id, false)) != 0 {
 		t.Fatal("failed fulfillment left a member message")
 	}
+}
+
+func enrollTestClient(t *testing.T, c *http.Client, base string) string {
+	t.Helper()
+	body, status := post(t, c, base, "/account/security", url.Values{"action": {"totp-start"}})
+	match := regexp.MustCompile(`id="totp-secret">([^<]+)`).FindStringSubmatch(body)
+	if len(match) != 2 {
+		t.Fatalf("enrollment setup failed: %d %s", status, body)
+	}
+	code, e := totp.GenerateCode(match[1], time.Now())
+	if e != nil {
+		t.Fatal(e)
+	}
+	body, status = post(t, c, base, "/account/security", url.Values{"action": {"totp-confirm"}, "code": {code}})
+	if status != 200 || !strings.Contains(body, "Save your recovery codes") {
+		t.Fatalf("enrollment failed: %d %s", status, body)
+	}
+	return match[1]
 }

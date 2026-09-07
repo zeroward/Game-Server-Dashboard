@@ -35,7 +35,7 @@ func main() {
 	if e = s.SeedDemo(); e != nil {
 		log.Fatal(e)
 	}
-	a, e := portal.New(s, portal.Config{VPNEnabled: true, VPNDeliveryDir: filepath.Join(dir, "delivery"), VPNEndpoint: "vpn.example.invalid:51820", DataDir: dir, BaseURL: "http://127.0.0.1:8088"}, web.Assets)
+	a, e := portal.New(s, portal.Config{VPNEnabled: true, VPNDeliveryDir: filepath.Join(dir, "delivery"), VPNEndpoint: "vpn.example.invalid:51820", DataDir: dir, BaseURL: "http://localhost:8088"}, web.Assets)
 	if e != nil {
 		log.Fatal(e)
 	}

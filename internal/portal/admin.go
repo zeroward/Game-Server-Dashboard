@@ -263,8 +263,18 @@ func (a *App) adminPost(w http.ResponseWriter, r *http.Request) {
 			for _, raw := range r.Form["recommend"] {
 				recommendations = append(recommendations, number(raw))
 			}
-			token, e = a.Store.IssueToken(u.ID, kind, username, email, number(r.FormValue("user_id")), recommendations...)
+			var delivery func(*sql.Tx, string, string, int) error
+			if r.FormValue("delivery") == "email" {
+				delivery = func(tx *sql.Tx, token, to string, uid int) error {
+					return a.queueMail(tx, uid, kind, to, hashToken(token), mailBody{"Your Waypoint " + kind, "You have received a Waypoint " + kind + " link. Set your password, then complete secure sign-in setup.\n\n" + a.Config.BaseURL + "/account/redeem?token=" + token})
+				}
+			}
+			token, e = a.Store.issueToken(u.ID, kind, username, email, number(r.FormValue("user_id")), delivery, recommendations...)
 			if e == nil {
+				if delivery != nil {
+					http.Redirect(w, r, "/admin/email?success=Email+queued", 303)
+					return
+				}
 				p := a.page(r, "Delivery link", "token")
 				p.TokenURL = a.Config.BaseURL + "/account/redeem?token=" + token
 				a.render(w, r, p)

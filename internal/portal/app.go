@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"github.com/alexedwards/scs/v2"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gorilla/csrf"
 	"html/template"
 	"io/fs"
@@ -22,6 +23,7 @@ import (
 
 type Config struct {
 	DataDir, BaseURL, Addr     string
+	SecretsDir                 string
 	VPNEnabled                 bool
 	VPNEndpoint, VPNControlDir string
 	VPNDeliveryDir             string
@@ -36,6 +38,8 @@ type App struct {
 	Assets         fs.FS
 	csrfKey        []byte
 	deliveryCipher cipher.AEAD
+	secretCipher   cipher.AEAD
+	WebAuthn       *webauthn.WebAuthn
 }
 
 func New(s *Store, c Config, assets fs.FS) (*App, error) {
@@ -110,6 +114,9 @@ func New(s *Store, c Config, assets fs.FS) (*App, error) {
 			return nil, e
 		}
 	}
+	if e = a.initSecurity(); e != nil {
+		return nil, e
+	}
 	return a, nil
 }
 func (a *App) Handler() http.Handler {
@@ -125,6 +132,15 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("GET /services/{slug}/open", a.direct)
 	mux.HandleFunc("GET /out/{id}", a.out)
 	mux.HandleFunc("GET /media/{id}", a.media)
+	mux.HandleFunc("GET /account/security", a.security)
+	mux.HandleFunc("POST /account/security", a.security)
+	mux.HandleFunc("GET /account/totp-qr", a.totpQR)
+	mux.HandleFunc("GET /account/verify-email", a.verifyEmail)
+	mux.HandleFunc("POST /account/verify-email", a.verifyEmail)
+	mux.HandleFunc("POST /account/passkeys/{action}", a.passkey)
+	mux.HandleFunc("GET /admin/email", a.emailAdmin)
+	mux.HandleFunc("POST /admin/email", a.emailAdmin)
+	mux.HandleFunc("POST /admin/factor-reset", a.factorReset)
 	mux.HandleFunc("GET /account/{action}", a.auth)
 	mux.HandleFunc("POST /account/{action}", a.auth)
 	mux.HandleFunc("GET /my-access", a.myAccess)

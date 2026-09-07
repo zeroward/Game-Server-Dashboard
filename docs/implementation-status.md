@@ -31,7 +31,7 @@ Verified locally on 2026-09-07. Implemented features and executed checks are sep
 - [x] Previously, `python3 tests/vpn-network.py` passed **8 real-network checks** in disposable Docker namespaces: per-peer IP/port restrictions despite malicious client AllowedIPs, explicit UDP approval, gateway/peer isolation, source spoof rejection, established-connection revocation, gateway restart, kernel expiry with the agent suspended and portal offline, and subsequent expired-peer removal. No host networking or host firewall commands are used. Packet tests were not rerun for the connection-pack change; gateway/firewall code is unchanged, and the updated real-gateway container smoke test passed.
 - [x] Baseline `govulncheck` reported **zero reachable vulnerabilities** using Go 1.26.8 and the pinned dependency set. It also reports advisories for Gorilla CSRF's unused `TrustedOrigins` option (GO-2025-3884) and the unused OpenPGP package within x/crypto (GO-2026-5932). This application configures no TrustedOrigins allowlist and imports no OpenPGP code.
 
-The baseline dependency scan predates the VPN extension; no Go dependencies were added, but that scan was not rerun for the new binary or the gateway OS packages.
+The dependency scan was rerun for the secure-login/SMTP extension and again reported zero reachable vulnerabilities, with the same unused TrustedOrigins/OpenPGP advisories. Gateway OS packages were not rescanned.
 
 Browser screenshots and its scenario report are generated under `test-results/` (ignored by Git and production builds). The browser fixture uses random temporary credentials and a temporary database, never operator data. Backup/restore procedures and HTTPS proxy setup are documented; no production reverse proxy or external service was changed or deployed during verification.
 
@@ -41,8 +41,14 @@ Browser screenshots and its scenario report are generated under `test-results/` 
 - [ ] Repeat downloads, QR import, or automatic updates to previously downloaded packs. Pending delivery expires in 30 days; lost/interrupted downloads need replacement and fresh approval. Ciphertext deletion does not erase old WAL/backups.
 - [ ] Immediate revocation while the gateway is disconnected from the portal. The selected outage policy keeps previously applied grants until their individual expiry; the UI shows unconfirmed removal.
 - [ ] Host networking/firewall configuration and external application permission changes. Network ACLs apply only within the dedicated gateway.
-- [ ] OIDC, outbound notifications, live status APIs, access bundles, calendars/polls/social features, attachments, and integrations with external permission systems.
+- [ ] OIDC, Discord/web-push notifications, live status APIs, access bundles, calendars/polls/social features, attachments, and integrations with external permission systems.
 - [ ] Verification of external entitlements or automated external removal. Admin confirmations are manual assertions.
 - [ ] Automatic cleanup of unused artwork files. Unreferenced files remain protected and can be removed during operator maintenance.
 
 Public branding is visible on login; public catalog access is opt-in. External artwork has the documented browser privacy tradeoff. No production deployment or external service changes were performed.
+
+## Required secure login and SMTP extension
+
+Implemented: mandatory passkey or password/TOTP enrollment, restricted pending sessions, named passkeys, locally generated authenticator QR codes, replay prevention, hashed recovery codes, administrator factor resets, explicit CLI factor recovery, encrypted SMTP settings, test delivery, transactional invitation/notification outbox, verified email/preferences, sanitized delivery queue, automatic migration and separate portal-only key volume.
+
+Extension checks: 56 Go tests including race detection, vet and formatting; 16 Playwright scenarios including virtual-authenticator passkeys, forged-origin and missing-user-verification rejection, passkey-only onboarding, desktop/mobile accessibility and screenshots; production build; automatic migration/startup smoke tests; real-gateway container smoke tests; and an externally disconnected consolidated tunnel-stack smoke test. Local SMTP tests exercise STARTTLS, implicit TLS, authentication failures, untrusted certificates, verification ownership, transactional queues, retries, cancellation and restart recovery. No live SMTP provider delivery, real hardware passkey, or production Cloudflare connection was tested. Deferred: email-only MFA recovery (intentionally unsupported), public signup, external identity/OIDC, bounce/read tracking, marketing mail, automatic encryption-key rotation. SMTP server acceptance is not verified inbox delivery.

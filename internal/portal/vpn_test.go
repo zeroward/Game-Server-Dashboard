@@ -244,7 +244,7 @@ func TestVPNMigrationPreservesVersionOneData(t *testing.T) {
 	if s.Settings().Name != "Existing community" || s.User(1).Username != "existing-owner" {
 		t.Fatal("migration changed existing data")
 	}
-	if count(t, s, "SELECT max(version) FROM migrations") != 3 {
+	if count(t, s, "SELECT max(version) FROM migrations") != len(schemaMigrations) {
 		t.Fatal("migration missing")
 	}
 	if _, e = s.VPNSnapshot(); e != nil {
