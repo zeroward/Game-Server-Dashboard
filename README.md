@@ -139,3 +139,5 @@ Configure SMTP in **Administration → email**, then use **Email invitation** in
 Back up the new **portal-secrets** volume alongside your database. See [secure accounts and email](docs/accounts-email.md) for setup, recovery, delivery behavior, and hostname requirements.
 
 For services that handle their own registration, edit the service and select **Access mode → Handled in an external portal**. Enter the **Signup portal URL**, optionally customize the button label, and choose who may open it. The default is signed-in members; service/category visibility still applies. Signup can be available while connection details remain restricted. Existing contextual links remain supported.
+
+Containers are named `waypoint-portal`, `waypoint-gateway`, and `waypoint-cloudflared` by default (plus `waypoint-browser-tests` for the test service). For example: `docker logs -f waypoint-portal`. The prefix follows the Compose project name, so separate projects keep separate container names.

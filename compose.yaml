@@ -1,6 +1,7 @@
 # Start the configured portal, VPN gateway, and HTTPS tunnel: docker compose up -d --build
 services:
   portal:
+    container_name: ${COMPOSE_PROJECT_NAME:-waypoint}-portal
     build: .
     image: waypoint:local
     init: true
@@ -38,6 +39,7 @@ services:
     tmpfs:
       - /tmp:size=16m,mode=1777
   gateway:
+    container_name: ${COMPOSE_PROJECT_NAME:-waypoint}-gateway
     build:
       context: .
       dockerfile: Dockerfile.gateway
@@ -69,6 +71,7 @@ services:
       portal:
         condition: service_healthy
   cloudflared:
+    container_name: ${COMPOSE_PROJECT_NAME:-waypoint}-cloudflared
     image: cloudflare/cloudflared:2026.8.3@sha256:51c9cefcb4569df44e1ad403ab1d3d8065aa8e84339bcfc6aee75502e1140339
     user: "65532:65532"
     command:
@@ -115,6 +118,7 @@ services:
         max-size: "10m"
         max-file: "3"
   browser-tests:
+    container_name: ${COMPOSE_PROJECT_NAME:-waypoint}-browser-tests
     profiles: [test]
     build:
       context: .
