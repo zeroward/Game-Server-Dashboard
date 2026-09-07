@@ -1,0 +1,64 @@
+# Opt in: -f compose.yaml [-f compose.vpn.yaml] -f compose.tunnel.yaml
+# Requires Docker Compose 2.24.4+ for !reset. No portal host port is published.
+services:
+  portal:
+    ports: !reset []
+    environment:
+      APP_ENV: production
+      BASE_URL: https://${TUNNEL_HOSTNAME:?Set TUNNEL_HOSTNAME to your portal hostname without a scheme or path}
+      TRUSTED_PROXIES: ${TUNNEL_CONNECTOR_IP:-172.30.250.2}/32
+    networks:
+      tunnel:
+        ipv4_address: ${TUNNEL_PORTAL_IP:-172.30.250.3}
+  cloudflared:
+    image: cloudflare/cloudflared:2026.8.3@sha256:51c9cefcb4569df44e1ad403ab1d3d8065aa8e84339bcfc6aee75502e1140339
+    user: "65532:65532"
+    command:
+      - tunnel
+      - --no-autoupdate
+      - --loglevel
+      - warn
+      - --metrics
+      - 127.0.0.1:2000
+      - run
+      - --token-file
+      - /run/secrets/cloudflare-token
+    volumes:
+      - type: bind
+        source: ${TUNNEL_TOKEN_FILE:-./secrets/cloudflare-token}
+        target: /run/secrets/cloudflare-token
+        read_only: true
+        bind:
+          create_host_path: false
+          selinux: Z
+    networks:
+      tunnel:
+        ipv4_address: ${TUNNEL_CONNECTOR_IP:-172.30.250.2}
+    depends_on:
+      portal:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "--metrics", "127.0.0.1:2000", "ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    restart: unless-stopped
+    mem_limit: 256m
+    pids_limit: 128
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
+networks:
+  tunnel:
+    # Only portal + connector join this bridge. The connector needs outbound access.
+    ipam:
+      config:
+        - subnet: ${TUNNEL_SUBNET:-172.30.250.0/29}

@@ -66,3 +66,7 @@ Make regular backups and keep the Go toolchain/dependencies updated. Review the 
 ## Optional gateway operations
 
 See [VPN deployment and recovery](vpn.md) for the explicit Compose overlay, separate control/key storage, network prerequisites, and outage semantics. Back up all four volumes (portal data, control, gateway, and portal-only delivery key) consistently and stop the gateway before restoring an old portal database so revoked grants cannot be resurrected. Default Compose remains a single unprivileged application; the gateway is never started implicitly.
+
+## Optional website tunnel
+
+[Cloudflare Tunnel](tunnel.md) is an opt-in Compose overlay for HTTPS browser access. It requires no schema change and does not carry the WireGuard UDP endpoint. The pinned connector gets one protected token file and a dedicated bridge; the portal trusts only its fixed IP. Production mode and removal of the portal host port are enforced by the overlay. Existing project volumes are retained.

@@ -44,6 +44,8 @@ Manual status is labeled with its update time. It is never a live health or play
 
 ## HTTPS and reverse proxies
 
+For an optional Cloudflare Tunnel container, follow [the tunnel setup guide](docs/tunnel.md). Its Compose overlay works with the VPN overlay, uses a mounted token file, forces HTTPS cookies, and removes the portal host-port mapping. Set your Cloudflare hostname and publish the route to `http://portal:8080`. The WireGuard UDP endpoint remains separate.
+
 For production, set:
 
 ```dotenv
