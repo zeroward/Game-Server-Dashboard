@@ -1,0 +1,138 @@
+{{define "base"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>{{.Title}} · {{.Settings.Name}}</title>
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/app.js" defer>
+</script>
+</head>
+<body style="--accent:{{safeAccent .Settings.Accent}}">
+<a class="skip" href="#main">Skip to content</a>
+<header class="header">
+<a href="/" class="brand">{{if .Settings.Logo}}<img src="{{.Settings.Logo}}" alt="">{{else}}<span class="brand-mark" aria-hidden="true">w<span>・</span>
+</span>{{end}}{{.Settings.Name}}</a>
+<nav class="main-nav" aria-label="Main navigation">
+<a href="/" {{if eq .View "catalog"}}aria-current="page"{{end}}>Library</a>{{if .User}}<a href="/my-access">My Access</a>
+<a href="/requests">My Requests</a>{{if .VPNEnabled}}<a href="/my-devices">My Devices</a>{{end}}{{end}}</nav>
+<div class="utilities">
+<details class="header-search">
+<summary aria-label="Open library search">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+<circle cx="10" cy="10" r="6"/>
+<path d="m15 15 6 6"/>
+</svg>
+</summary>
+<form action="/" method="get">
+<label>Search the library<input name="q" placeholder="Find a service…" maxlength="120">
+</label>
+<button class="small">Find services</button>
+</form>
+</details>{{range .GlobalLinks}}<a class="utility" href="/out/{{.ID}}" {{if .NewTab}}target="_blank" rel="noopener noreferrer"{{end}}>{{if eq .Icon "status"}}<span class="status-dot">
+</span>{{end}}{{.Label}} ↗</a>{{end}}{{if .User}}<a class="notification-link" href="/notifications" aria-label="Notifications, {{.Unread}} unread">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>
+</svg>{{if .Unread}}<span class="unread">{{.Unread}}</span>{{end}}</a>
+<details class="account-menu">
+<summary aria-label="Account menu">{{.User.Username}} <span>⌄</span>
+</summary>
+<div class="menu">{{if eq .User.Role "admin"}}<a href="/admin">Administration</a>{{end}}<a href="/account/password">Change password</a>
+<form method="post" action="/account/logout">{{.CSRF}}<button class="text-button">Sign out</button>
+</form>
+</div>
+</details>{{else}}<a href="/account/login">Sign in</a>{{end}}</div>
+</header>
+<main id="main" tabindex="-1">{{if .Success}}<div class="flash" role="status">{{.Success}}</div>{{end}}{{if and .Error (ne .View "error")}}<div class="flash error" role="alert">{{.Error}}</div>{{end}}{{if eq .View "catalog"}}{{template "catalog" .}}{{else if eq .View "service"}}{{template "service" .}}{{else if eq .View "auth"}}{{template "auth" .}}{{else if eq .View "requests"}}{{template "requests" .}}{{else if eq .View "request"}}{{template "request" .}}{{else if eq .View "access"}}{{template "access" .}}{{else if eq .View "notifications"}}{{template "notifications" .}}{{else if eq .View "devices"}}{{template "devices" .}}{{else if eq .View "admin"}}{{template "admin" .}}{{else if eq .View "token"}}{{template "token" .}}{{else if eq .View "preview"}}<div class="notice">Read-only {{.Preview}} preview. <a href="/admin/services">Return to editor</a>
+</div>{{if .Service}}{{template "service" .}}{{else}}<div class="empty">
+<h1>Not discoverable</h1>
+<p>This audience cannot discover this service.</p>
+</div>{{end}}{{else}}<section class="empty">
+<p class="eyebrow">{{.Title}}</p>
+<h1>Let’s get you back on track.</h1>
+<p>{{.Error}}</p>
+<a class="button" href="/">Back to library</a>
+</section>{{end}}</main>
+<footer>
+<span>{{.Settings.Name}} <span class="muted">/</span> A place for your people.</span>
+<span>External services manage their own access.</span>
+</footer>
+<div id="copy-status" class="toast" role="status" aria-live="polite">
+</div>
+</body>
+</html>{{end}}
+{{define "announcements"}}{{range .}}<aside class="announcement">
+<span class="eyebrow">Community notice</span>
+<strong>{{.Title}}</strong>
+<div class="markdown">{{.HTML}}</div>
+</aside>{{end}}{{end}}
+{{define "links"}}{{range .}}<a class="{{if eq .Style "primary"}}button{{else}}resource{{end}}" href="/out/{{.ID}}" {{if .NewTab}}target="_blank" rel="noopener noreferrer"{{end}}>{{template "link-icon" .Icon}}{{.Label}} <span aria-hidden="true">↗</span>{{if .Description}}<small>{{.Description}}</small>{{end}}</a>{{end}}{{end}}
+{{define "card"}}<article class="service-card">
+<a class="card-cover artwork art-{{.Config.Type}} art-{{.Slug}}" href="/services/{{.Slug}}{{if .Config.DirectLink}}/open{{end}}" aria-label="Explore {{.Name}}">{{if .Config.Artwork}}<img src="{{.Config.Artwork}}" alt="" loading="lazy" style="object-position:{{.Config.FocalX}}% {{.Config.FocalY}}%">{{end}}<span class="art-orbit" aria-hidden="true">
+</span>
+<span class="art-title" aria-hidden="true">{{if .Config.Game}}{{.Config.Game}}{{else}}{{.Name}}{{end}}</span>{{if .Recommended}}<span class="card-recommended">Recommended for you</span>{{end}}<span class="card-type">{{.Config.Type}}</span>
+<span class="card-arrow" aria-hidden="true">↗</span>
+</a>
+<div class="card-info">
+<div class="row">
+<h2>
+<a href="/services/{{.Slug}}">{{.Name}}</a>
+</h2>{{if .Config.Status}}<span class="badge status-{{.Config.Status}}" title="Manually updated {{.Config.StatusAt}}">{{.Config.Status}}</span>{{end}}</div>
+<p>{{.Config.Summary}}</p>{{if .Config.Tags}}<span class="tags">{{.Config.Tags}}</span>{{end}}</div>
+</article>{{end}}
+{{define "catalog"}}<section class="welcome">
+<div>
+<p class="eyebrow">YOUR SHARED CORNER OF THE INTERNET</p>
+<h1>Make yourself at home<span>.</span>
+</h1>
+<p>{{.Settings.Description}}</p>
+</div>
+<div class="welcome-note">
+<span class="little-star" aria-hidden="true">✳</span>
+<span>Find your next adventure.<br>We saved you a seat.</span>
+</div>
+</section>{{template "announcements" .Announcements}}<section aria-labelledby="library-heading">
+<div class="section-heading">
+<div>
+<p class="eyebrow">EXPLORE & CONNECT</p>
+<h2 id="library-heading">The library <span class="count">{{len .Services}}</span>
+</h2>
+</div>
+<form class="search" method="get" action="/" role="search">
+<label class="sr-only" for="search">Search services</label>
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+<circle cx="10" cy="10" r="6"/>
+<path d="m15 15 6 6"/>
+</svg>
+<input id="search" name="q" placeholder="Find a game, app, or place…" value="{{.Query}}">
+<input type="hidden" name="category" value="{{.Filter}}">
+<button class="search-submit" aria-label="Search">↵</button>
+</form>
+</div>
+<div class="filter-row">
+<nav class="filters" aria-label="Categories">
+<a href="/?q={{.Query}}" {{if not .Filter}}aria-current="page"{{end}}>All services</a>{{range .Categories}}<a href="/?category={{.ID}}&q={{$.Query}}" >{{.Name}}</a>{{end}}</nav>
+<form class="tag-filter" method="get">
+<input type="hidden" name="q" value="{{.Query}}">
+<input type="hidden" name="category" value="{{.Filter}}">
+<label class="sr-only" for="tag">Filter by tag</label>
+<input id="tag" name="tag" placeholder="Filter by tag" value="{{.Tag}}">
+<button class="small">Filter</button>
+</form>
+</div>
+<div class="catalog-grid">{{range .Services}}{{template "card" .}}{{else}}<div class="empty">
+<h2>A little quiet here.</h2>
+<p>No services match this view. Try another category or search.</p>{{if .User}}{{if eq .User.Role "admin"}}<a class="button" href="/admin/services/new">Add your first service</a>{{end}}{{end}}</div>{{end}}</div>{{if .Links}}<div class="section-heading">
+<h2>Category resources</h2>
+</div>
+<div class="actions">{{template "links" .Links}}</div>{{end}}</section>
+<section class="home-note">
+<span class="little-star" aria-hidden="true">↗</span>
+<div>
+<h3>A few good places, all together.</h3>
+<p>Explore a service for setup instructions. Need an invitation inside? Send a request and we’ll take it from there.</p>
+</div>
+</section>{{end}}
+
+{{define "link-icon"}}<span class="link-icon" aria-hidden="true">{{if eq . "game"}}◇{{else if eq . "play"}}▷{{else if eq . "book"}}▤{{else if eq . "status"}}◉{{else if eq . "download"}}↓{{else if eq . "community"}}◎{{else}}↗{{end}}</span>{{end}}

@@ -1,0 +1,269 @@
+{{define "service"}}{{$s:=.Service}}<a class="back" href="/">← Back to library</a>
+<section class="service-hero artwork art-{{$s.Config.Type}} art-{{$s.Slug}}">{{if $s.Config.Artwork}}<img src="{{$s.Config.Artwork}}" alt="" style="object-position:{{$s.Config.FocalX}}% {{$s.Config.FocalY}}%">{{end}}<span class="art-orbit" aria-hidden="true">
+</span>
+<div class="service-hero-text">
+<p class="eyebrow">{{$s.Config.Type}} {{if $s.Config.Tags}} / {{$s.Config.Tags}}{{end}}</p>
+<h1>{{$s.Name}}</h1>
+<p>{{$s.Config.Summary}}</p>
+</div>
+</section>{{template "announcements" .Announcements}}<div class="detail-layout">
+<div>
+<section class="panel">
+<h2>Welcome in.</h2>
+<div class="markdown">{{$s.HTML}}</div>{{if $s.Config.Status}}<p class="manual-status">
+<span class="badge status-{{$s.Config.Status}}">{{$s.Config.Status}}</span> Manually updated {{date $s.Config.StatusAt}}</p>{{end}}<div class="actions">{{template "links" $s.Links}}</div>{{if eq $s.Mode "external"}}<p class="muted">Access is managed in the external portal. Your Waypoint membership does not create an external account.</p>{{if not $s.Links}}<p class="notice">The portal destination has not been configured yet.</p>{{end}}{{else if eq $s.Mode "info"}}<p class="muted">No access request is needed in this portal.</p>{{end}}</section>{{if $s.Details}}<section class="panel">
+<h2>Help me connect</h2>
+<dl class="connection-list">{{if $s.Config.Host}}<div>
+<dt>Hostname / IP</dt>
+<dd>
+<code>{{$s.Config.Host}}</code>
+<button type="button" class="copy" data-copy="{{$s.Config.Host}}" aria-label="Copy hostname or IP">Copy</button>
+</dd>
+</div>{{end}}{{if $s.Config.Port}}<div>
+<dt>Port</dt>
+<dd>
+<code>{{$s.Config.Port}}</code>
+<button type="button" class="copy" data-copy="{{$s.Config.Port}}" aria-label="Copy port">Copy</button>
+</dd>
+</div>{{end}}{{if $s.Config.Connection}}<div>
+<dt>Connection string</dt>
+<dd>
+<code>{{$s.Config.Connection}}</code>
+<button type="button" class="copy" data-copy="{{$s.Config.Connection}}" aria-label="Copy connection string">Copy</button>
+</dd>
+</div>{{end}}{{if $s.Config.Version}}<div>
+<dt>Client version</dt>
+<dd>{{$s.Config.Version}}</dd>
+</div>{{end}}{{if $s.Config.Platform}}<div>
+<dt>Platform / edition</dt>
+<dd>{{$s.Config.Platform}}</dd>
+</div>{{end}}{{range $s.Config.Custom}}<div>
+<dt>{{.Label}}</dt>
+<dd>
+<code>{{.Value}}</code>
+<button type="button" class="copy" data-copy="{{.Value}}" aria-label="Copy {{.Label}}">Copy</button>
+</dd>
+</div>{{end}}</dl>
+<div class="markdown">{{$s.GuideHTML}}</div>{{if not $s.Config.Guide}}<p class="muted">No additional setup instructions have been posted.</p>{{end}}<p class="muted small-text">These are administrator-authored instructions, not an automated diagnostic.</p>{{range .GlobalLinks}}{{if eq .Icon "status"}}<a class="resource" href="/out/{{.ID}}" {{if .NewTab}}target="_blank" rel="noopener noreferrer"{{end}}>Check the status board ↗</a>{{end}}{{end}}</section>{{else}}<section class="panel locked">
+<span aria-hidden="true">⌑</span>
+<h2>Connection details stay private.</h2>
+<p>They’ll appear here when your portal access record permits it.</p>
+</section>{{end}}{{if .Links}}<section class="panel">
+<h2>More from this category</h2>
+<div class="actions">{{template "links" .Links}}</div>
+</section>{{end}}</div>
+<aside>{{if and .User (not .Preview)}}{{if $s.Requestable}}<section class="panel">
+<p class="eyebrow">JOIN IN</p>
+<h2>Request access</h2>
+<p class="muted">Tell us a little about what you need. An administrator will arrange setup separately.</p>
+<form method="post" action="/services/{{$s.Slug}}/requests">{{.CSRF}}<input type="hidden" name="kind" value="access">
+<label>Reason<textarea name="reason" required minlength="3" maxlength="4000" rows="3">
+</textarea>
+</label>{{range $s.Config.Fields}}<label>{{.Label}}{{if .Required}} *{{end}}{{if eq .Type "select"}}<select name="field_{{.Key}}" {{if .Required}}required{{end}}>
+<option value="">Choose an option</option>{{range .Options}}<option>{{.}}</option>{{end}}</select>{{else if eq .Type "long"}}<textarea name="field_{{.Key}}" maxlength="2000" {{if .Required}}required{{end}}>
+</textarea>{{else}}<input name="field_{{.Key}}" type="{{if eq .Type "email"}}email{{else}}text{{end}}" maxlength="300" {{if .Required}}required{{end}}>{{end}}</label>{{end}}{{if $s.Config.Duration}}<label>Requested end date (optional)<input type="date" name="end">
+</label>{{end}}<p class="secret-guidance">Never include passwords, private keys, or VPN configurations.</p>
+<button>Send access request</button>
+</form>
+</section>{{end}}{{if $s.Supportable}}<section class="panel">
+<h2>Need a hand?</h2>
+<details>
+<summary>Get help connecting</summary>
+<form method="post" action="/services/{{$s.Slug}}/requests">{{.CSRF}}<input type="hidden" name="kind" value="support">
+<label>What happened?<textarea name="reason" required minlength="3" maxlength="4000" rows="4" placeholder="What were you trying to do? What did you see?">
+</textarea>
+</label>
+<p class="secret-guidance">Do not paste passwords, private keys, or VPN configurations. Attachments are not accepted.</p>
+<button>Create support request</button>
+</form>
+</details>
+</section>{{end}}{{if .Requests}}<section class="panel">
+<h2>Your requests</h2>{{range .Requests}}<a class="request-mini" href="/requests/{{.ID}}">#{{.ID}} · {{.Kind}}<span class="badge">{{.State}}</span>
+</a>{{end}}</section>{{end}}{{else if not .Preview}}<section class="panel">
+<h2>Come on in.</h2>
+<p>Sign in with your invitation-created account to request access or help.</p>
+<a class="button" href="/account/login">Sign in</a>
+</section>{{end}}</aside>
+</div>{{end}}
+{{define "auth"}}<div class="auth-layout">
+<div class="auth-intro">
+<p class="eyebrow">A LITTLE CLOSER TO YOUR PEOPLE</p>
+<h1>Your next good<br>evening starts here<span>.</span>
+</h1>
+<p>Games, movies, projects, and the places we share.</p>
+<div class="auth-art" aria-hidden="true">
+<div class="orb">
+</div>
+<span class="orbit-line">
+</span>
+</div>
+</div>
+<section class="panel auth-panel">{{if eq .AdminTab "redeem"}}<p class="eyebrow">WELCOME TO {{.Settings.Name}}</p>
+<h2>Make it yours.</h2>
+<p>Choose your account password. This link can be used once.</p>
+{{if .Query}}<p>Your username: <strong>{{.Query}}</strong></p>{{end}}
+<form method="post" action="/account/redeem">{{.CSRF}}<label>Invitation or reset token<input name="token" required autocomplete="off" value="{{.TokenURL}}" id="redemption-token">
+</label>
+<label>New password<input type="password" name="password" required minlength="12" maxlength="256" autocomplete="new-password">
+</label>
+<button>Set password</button>
+</form>{{else if eq .AdminTab "password"}}<h2>Change your password</h2>
+<form method="post" action="/account/password">{{.CSRF}}<label>Current password<input type="password" name="current_password" autocomplete="current-password" required>
+</label>
+<label>New password<input type="password" name="password" minlength="12" maxlength="256" autocomplete="new-password" required>
+</label>
+<p class="muted">Changing your password signs out all sessions.</p>
+<button>Change password</button>
+</form>{{else}}<p class="eyebrow">YOUR SEAT IS WAITING</p>
+<h2>Welcome back.</h2>
+<p class="muted">Sign in to your shared library.</p>
+<form method="post" action="/account/login">{{.CSRF}}<label>Username<input name="username" value="{{.Query}}" required autocomplete="username" autofocus maxlength="40">
+</label>
+<label>Password<input type="password" name="password" required autocomplete="current-password" maxlength="256">
+</label>
+<button>Sign in <span aria-hidden="true">→</span>
+</button>
+</form>
+<p class="small-text muted">Invitation only. Need an invite or a password reset? Ask your administrator for a private link.</p>{{end}}</section>
+</div>{{end}}
+{{define "requests"}}<div class="page-heading">
+<p class="eyebrow">KEEP IN TOUCH</p>
+<h1>My requests</h1>
+<p>From your first hello to getting connected.</p>
+</div>{{template "request-list" .Requests}}{{end}}
+{{define "request-list"}}<div class="request-list">{{range .}}<a class="request-row" href="/requests/{{.ID}}">
+<span class="request-number">#{{.ID}}</span>
+<span>
+<strong>{{.ServiceName}}</strong>
+<small>{{.Kind}} · {{.Username}} · {{date .Created}}</small>
+</span>
+<span class="badge">{{.State}}</span>
+<span aria-hidden="true">→</span>
+</a>{{else}}<div class="empty">
+<h2>Nothing in the queue.</h2>
+<p>Visit a service to request access or get help connecting.</p>
+<a class="button" href="/">Explore the library</a>
+</div>{{end}}</div>{{end}}
+{{define "request"}}{{$r:=.Request}}<a class="back" href="/requests">← My requests</a>
+<div class="page-heading">
+<p class="eyebrow">{{$r.Kind}} REQUEST #{{$r.ID}}</p>
+<h1>{{$r.ServiceName}}</h1>
+<span class="badge">{{$r.State}}</span> <span class="muted">Submitted by {{$r.Username}} · {{date $r.Created}}</span>
+</div>
+<div class="detail-layout">
+<div>
+<section class="panel">
+<h2>The request</h2>
+<p class="preserve">{{$r.Reason}}</p>
+<dl class="connection-list">{{range $r.Fields}}<div>
+<dt>{{.Label}}</dt>
+<dd class="preserve">{{.Value}}</dd>
+</div>{{end}}{{if $r.RequestedEnd}}<div>
+<dt>Requested end</dt>
+<dd>{{date $r.RequestedEnd}}</dd>
+</div>{{end}}</dl>
+</section>
+<section class="panel">
+<h2>Conversation</h2>{{range .Messages}}<article class="message">
+<div class="row">
+<strong>{{.Actor}}</strong>
+<small>{{date .Created}}</small>
+</div>
+<p class="preserve">{{.Body}}</p>
+</article>{{else}}<p class="muted">Replies from you and the administrator appear here.</p>{{end}}{{if .Actions}}<form method="post" action="/requests/{{$r.ID}}/reply">{{.CSRF}}<input type="hidden" name="version" value="{{$r.Version}}">
+<label>Member-visible reply<textarea name="body" required maxlength="6000" rows="4">
+</textarea>
+</label>
+<p class="secret-guidance">Do not paste passwords, private keys, or VPN configurations.</p>
+<button>Send reply</button>
+</form>{{else}}<p class="notice">This request is closed and kept for your records. Open a new request for further help.</p>{{end}}</section>{{if eq .User.Role "admin"}}<section class="panel private-panel">
+<p class="eyebrow">ADMINISTRATORS ONLY</p>
+<h2>Private notes</h2>{{range .Notes}}<article class="message">
+<strong>{{.Actor}}</strong>
+<small>{{date .Created}}</small>
+<p class="preserve">{{.Body}}</p>
+</article>{{end}}<form method="post" action="/requests/{{$r.ID}}/note">{{.CSRF}}<input type="hidden" name="version" value="{{$r.Version}}">
+<label>Private administrator note<textarea name="body" required maxlength="6000" rows="3">
+</textarea>
+</label>
+<p class="secret-guidance">Private notes are not a place for credentials or VPN configurations.</p>
+<button class="secondary">Save private note</button>
+</form>
+</section>{{end}}</div>
+<aside>{{if .Actions}}<section class="panel">
+<h2>{{if eq .User.Role "admin"}}Update request{{else}}Request actions{{end}}</h2>
+<form method="post" action="/requests/{{$r.ID}}/transition">{{.CSRF}}<input type="hidden" name="version" value="{{$r.Version}}">
+<label>Next state<select name="state">{{range .Actions}}<option>{{.}}</option>{{end}}</select>
+</label>{{if eq .User.Role "admin"}}<label>Member-visible explanation<textarea name="explanation" maxlength="6000" rows="3">
+</textarea>
+</label>
+<p class="muted small-text">Required when denying or asking for information.</p>{{if eq $r.Kind "access"}}<details open>
+<summary>Fulfillment details</summary>
+<p class="notice">Approval alone does not grant access.</p>
+<label>Non-secret next steps<textarea name="next_steps" maxlength="6000" rows="3">
+</textarea>
+</label>
+<label>Access expiry (optional)<input type="date" name="expires">
+</label>
+<label class="check">
+<input type="checkbox" name="confirmed">I performed the external setup.</label>
+</details>{{end}}{{else}}<p class="muted">Cancellation ends this request. You can submit another later.</p>{{end}}<button class="secondary" data-confirm="Apply this request state change?">Update request</button>
+</form>
+</section>{{end}}<section class="panel">
+<h2>History</h2>
+<ol class="timeline">{{range .History}}<li>
+<strong>{{.To}}</strong>
+<small>{{.Actor}} · {{date .Created}}</small>
+</li>{{end}}</ol>
+</section>
+</aside>
+</div>{{end}}
+{{define "access"}}<div class="page-heading">
+<p class="eyebrow">YOUR PLACES</p>
+<h1>My access</h1>
+<p>Access recorded by an administrator; external permissions are managed separately.</p>
+</div>{{if .Requests}}<h2>Getting you connected</h2>{{template "request-list" .Requests}}{{end}}<div class="access-grid">{{range .Accesses}}<section class="panel">
+<span class="badge">Portal access {{.State}}</span>
+<h2>{{.ServiceName}}</h2>
+<p class="muted">Recorded {{date .Granted}}{{if .Expires}} · Expires {{date .Expires}}{{end}}</p>{{if .NextSteps}}<h3>Your next steps</h3>
+<p class="preserve">{{.NextSteps}}</p>{{end}}{{if .Service}}<a class="resource" href="/services/{{.Service.Slug}}">Setup & details →</a>
+<div class="actions">{{template "links" .Service.Links}}</div>{{else}}<p class="muted">This service is no longer published. This record remains for your history.</p>{{end}}</section>{{else}}<section class="panel">
+<h2>Room for something new.</h2>
+<p class="muted">Your manually recorded access will appear here after setup is fulfilled.</p>
+<a class="resource" href="/">Explore services →</a>
+</section>{{end}}</div>{{if .Services}}<h2>Managed elsewhere</h2>
+<p class="muted">These services manage their own accounts. Opening a link does not establish access.</p>
+<div class="access-grid">{{range .Services}}<section class="panel">
+<h3>{{.Name}}</h3>
+<span class="badge">Externally managed</span>
+<p>{{.Config.Summary}}</p>
+<a class="resource" href="/services/{{.Slug}}">View service →</a>
+</section>{{end}}</div>{{end}}{{end}}
+{{define "notifications"}}<div class="section-heading">
+<div class="page-heading">
+<p class="eyebrow">UPDATES FOR YOU</p>
+<h1>Notifications</h1>
+</div>
+<form method="post" action="/notifications/read">{{.CSRF}}<button class="secondary">Mark all as read</button>
+</form>
+</div>
+<div class="request-list">{{range .Notifications}}<a class="request-row {{if not .Read}}is-unread{{end}}" href="{{if .DeviceID}}{{if eq $.User.Role "admin"}}/admin/vpn{{else}}/my-devices{{end}}#device-{{.DeviceID}}{{else if .RequestID}}/requests/{{.RequestID}}{{else}}/my-access{{end}}">
+<span>
+<strong>{{.Text}}</strong>
+<small>{{date .Created}}</small>
+</span>
+<span>→</span>
+</a>{{else}}<div class="empty">
+<h2>You’re all caught up.</h2>
+<p>Request replies and access updates will appear here.</p>
+</div>{{end}}</div>{{end}}
+{{define "token"}}<section class="panel narrow">
+<p class="eyebrow">PRIVATE DELIVERY</p>
+<h1>A link for your friend.</h1>
+<p>Copy this link now and deliver it privately. It is shown only once. Invitations expire after 48 hours; recovery links expire after one hour.</p>
+<label>Single-use link<input readonly value="{{.TokenURL}}" autocomplete="off">
+</label>
+<button type="button" data-copy="{{.TokenURL}}">Copy link</button>
+<p class="muted">This does not grant service access.</p>
+<a href="/admin/members">Back to members →</a>
+</section>{{end}}

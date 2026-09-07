@@ -1,0 +1,440 @@
+{{define "admin"}}<div class="admin-layout">
+<aside class="admin-nav">
+<p class="eyebrow">ADMINISTRATION</p>{{range list "requests" "services" "categories" "links" "members" "access" "followups" "announcements" "settings" "audit"}}<a href="/admin/{{.}}" {{if eq $.AdminTab .}}aria-current="page"{{end}}>{{.}}</a>{{end}}{{if .VPNEnabled}}<a href="/admin/vpn">network access</a>{{end}}</aside>
+<div class="admin-content">
+<div class="page-heading">
+<p class="eyebrow">YOUR COMMUNITY, THOUGHTFULLY MANAGED</p>
+<h1>{{.AdminTab}}</h1>
+</div>{{if eq .AdminTab "services"}}{{if .Service}}{{template "service-editor" .}}{{else}}<div class="section-heading">
+<p>Publish a place for friends to discover.</p>
+<a class="button" href="/admin/services/new">Add service +</a>
+</div>
+<div class="admin-list">{{range .Services}}<div class="admin-row">
+<div>
+<a href="/admin/services/{{.ID}}">
+<strong>{{.Name}}</strong>
+</a>
+<small>/services/{{.Slug}} · {{.Audience}} discovery · {{.DetailsAudience}} details</small>
+</div>
+<span class="badge">{{if .Archived}}Archived{{else if .Published}}Published{{else}}Draft{{end}}</span>
+<span>Order {{.Position}}</span>
+<a href="/admin/services/{{.ID}}">Edit →</a>
+</div>{{else}}<div class="empty">
+<h2>Your library starts here.</h2>
+<p>Add a service, then configure its audience and actions.</p>
+</div>{{end}}</div>{{end}}{{else if eq .AdminTab "categories"}}{{template "category-admin" .}}{{else if eq .AdminTab "links"}}{{template "link-admin" .}}{{else if eq .AdminTab "members"}}{{template "member-admin" .}}{{else if eq .AdminTab "requests"}}<form class="inline-form" method="get">
+<label>Search queue<input name="q" value="{{.Query}}" placeholder="Member, service, ID, or reason">
+</label>
+<label>State<select name="state">
+<option value="">All states</option>{{range list "Pending" "Needs Information" "Approved - Setup Pending" "Fulfilled" "Denied" "Cancelled" "Open" "Waiting for Member" "Resolved"}}<option {{if eq $.Filter .}}selected{{end}}>{{.}}</option>{{end}}</select>
+</label>
+<button>Filter</button>
+</form>{{template "request-list" .Requests}}{{else if eq .AdminTab "access"}}{{template "access-admin" .}}{{else if eq .AdminTab "announcements"}}{{template "announcement-admin" .}}{{else if eq .AdminTab "settings"}}{{template "settings-admin" .}}{{else if eq .AdminTab "followups"}}<p class="notice">Portal changes do not revoke external permissions. Record completion only after you perform removal in the external application or network.</p>{{range .Rows}}<section class="panel">
+<h3>{{index . 1}} · {{index . 2}}</h3>
+<p>{{index . 3}}</p>
+<small>{{index . 4}}</small>{{if index . 5}}<p class="badge">Manually completed {{index . 5}}</p>{{else}}<form method="post" action="/admin/followups/{{index . 0}}">{{$.CSRF}}<label class="check">
+<input type="checkbox" name="confirm" required>I performed external removal.</label>
+<button class="secondary">Record completion</button>
+</form>{{end}}</section>{{else}}<div class="empty">
+<h2>No external-removal follow-ups.</h2>
+<p>Revocation, expiry, and member disablement create reminders here.</p>
+</div>{{end}}{{else if eq .AdminTab "audit"}}<p class="muted">Most recent 500 audit events. Actor, action and target only; message bodies and credentials are excluded.</p>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Actor</th>
+<th>Action</th>
+<th>Target</th>
+<th>UTC timestamp</th>
+</tr>
+</thead>
+<tbody>{{range .Rows}}<tr>{{range .}}<td>{{.}}</td>{{end}}</tr>{{end}}</tbody>
+</table>
+</div>{{end}}</div>
+</div>{{end}}
+{{define "service-editor"}}{{$s:=.Service}}<div class="editor-layout">
+<div>
+<form class="panel" method="post" action="/admin/services/{{$s.ID}}" id="service-editor">{{.CSRF}}<h2>The basics</h2>
+<div class="form-grid">
+<label>Display name<input name="name" value="{{$s.Name}}" required maxlength="120" data-preview="name">
+</label>
+<label>URL slug<input name="slug" value="{{$s.Slug}}" required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="100">
+</label>
+<label>Service type<select name="type">{{range list "game" "application" "network" "destination"}}<option {{if eq $s.Config.Type .}}selected{{end}}>{{.}}</option>{{end}}</select>
+</label>
+<label>Category<select name="category_id">
+<option value="0">Uncategorized</option>{{range .Categories}}<option value="{{.ID}}" {{if eqi $s.CategoryID .ID}}selected{{end}}>{{.Name}}</option>{{end}}</select>
+</label>
+</div>
+<label>Short description<input name="summary" value="{{$s.Config.Summary}}" maxlength="240" data-preview="summary">
+</label>
+<label>Description (sanitized Markdown)<textarea name="description" rows="6" maxlength="20000">{{$s.Config.Description}}</textarea>
+</label>
+<div class="form-grid">
+<label>Game name (optional)<input name="game" value="{{$s.Config.Game}}" maxlength="120">
+</label>
+<label>Tags (comma separated)<input name="tags" value="{{$s.Config.Tags}}" maxlength="300">
+</label>
+</div>
+<h3>Access & visibility</h3>
+<label>Access mode<select name="mode">
+<option value="info" {{if eq $s.Mode "info"}}selected{{end}}>Informational / no request</option>
+<option value="request" {{if eq $s.Mode "request"}}selected{{end}}>Requests in Waypoint</option>
+<option value="external" {{if eq $s.Mode "external"}}selected{{end}}>Handled in an external portal</option>
+</select>
+</label>
+<div class="form-grid">
+<label>Who can discover this service?<select name="audience">{{range audiences}}<option {{if eq $s.Audience .}}selected{{end}}>{{.}}</option>{{end}}</select>
+</label>
+<label>Who can see connection details & guide?<select name="details_audience">{{range audiences}}<option {{if eq $s.DetailsAudience .}}selected{{end}}>{{.}}</option>{{end}}</select>
+</label>
+</div>
+<label>Access record checked for this service<select name="access_service">
+<option value="0">This service</option>{{range .Services}}<option value="{{.ID}}" {{if eqi $s.AccessService .ID}}selected{{end}}>{{.Name}}</option>{{end}}</select>
+</label>
+<p class="notice">Public content still requires public browsing to be enabled. Access means a current active portal record, never an approved ticket. Parent category rules also apply.</p>
+<div class="form-grid">
+<label>Display order<input type="number" name="position" value="{{$s.Position}}">
+</label>
+<div>
+<label class="check">
+<input type="checkbox" name="published" {{if $s.Published}}checked{{end}}>Published</label>
+<label class="check">
+<input type="checkbox" name="featured" {{if $s.Featured}}checked{{end}}>Featured</label>
+</div>
+</div>
+<details>
+<summary>Artwork & presentation</summary>
+<label>Artwork URL or uploaded image path<input name="artwork" value="{{$s.Config.Artwork}}" data-preview="artwork">
+</label>
+<p class="secret-guidance">Prefer local uploads below. External images disclose viewers’ IP addresses to the image host; no proxy or downloader is used.</p>
+<div class="form-grid">
+<label>Horizontal focal point<input type="range" name="focal_x" min="0" max="100" value="{{$s.Config.FocalX}}" data-preview="focal_x">
+</label>
+<label>Vertical focal point<input type="range" name="focal_y" min="0" max="100" value="{{$s.Config.FocalY}}" data-preview="focal_y">
+</label>
+</div>
+<label>Card action<select name="direct_link">
+<option value="0">Open service details</option>{{range .Links}}{{if and (eq .Placement "service") (eqi .ParentID $s.ID)}}<option value="{{.ID}}" {{if eqi $s.Config.DirectLink .ID}}selected{{end}}>Open: {{.Label}}</option>{{end}}{{end}}</select>
+</label>
+<p class="muted small-text">Direct destinations are rechecked on the server. Configure service links after saving the service.</p>
+<label>Manual status<select name="status">{{range list "" "Unknown" "Online" "Offline" "Maintenance"}}<option value="{{.}}" {{if eq $s.Config.Status .}}selected{{end}}>{{if .}}{{.}}{{else}}Hide status badge{{end}}</option>{{end}}</select>
+</label>
+</details>
+<details>
+<summary>Connection details & Help Me Connect</summary>
+<div class="form-grid">
+<label>Hostname / IPv4 / IPv6<input name="host" value="{{$s.Config.Host}}" maxlength="255">
+</label>
+<label>Port<input name="port" value="{{$s.Config.Port}}" inputmode="numeric">
+</label>
+<label>Client version<input name="version" value="{{$s.Config.Version}}" maxlength="120">
+</label>
+<label>Platform / edition<input name="platform" value="{{$s.Config.Platform}}" maxlength="120">
+</label>
+</div>
+<label>Explicit connection string<input name="connection" value="{{$s.Config.Connection}}" maxlength="1000">
+</label>
+<p class="muted small-text">No address or launch command is constructed automatically.</p>{{range seq 4}}{{$v:=valueAt $s.Config.Custom .}}<div class="form-grid">
+<label>Custom label {{add . 1}}<input name="custom_{{.}}_label" value="{{$v.Label}}" maxlength="100">
+</label>
+<label>Value<input name="custom_{{.}}_value" value="{{$v.Value}}" maxlength="1000">
+</label>
+</div>{{end}}<label>Setup guide (sanitized Markdown)<textarea name="guide" rows="8" maxlength="20000">{{$s.Config.Guide}}</textarea>
+</label>
+</details>
+<details>
+<summary>Access request form (up to six fields)</summary>
+<p class="secret-guidance">Ask only for necessary information. Never request passwords, private keys, or VPN configurations.</p>{{range seq 6}}{{$f:=fieldAt $s.Config.Fields .}}<fieldset>
+<legend>Field {{add . 1}}</legend>
+<div class="form-grid">
+<label>Label (blank to omit)<input name="field_{{.}}_label" value="{{$f.Label}}" maxlength="100">
+</label>
+<label>Type<select name="field_{{.}}_type">{{range list "short" "long" "email" "select"}}<option {{if eq $f.Type .}}selected{{end}}>{{.}}</option>{{end}}</select>
+</label>
+</div>
+<label>Select options (comma separated)<input name="field_{{.}}_options" value="{{join $f.Options ", "}}">
+</label>
+<label class="check">
+<input type="checkbox" name="field_{{.}}_required" {{if $f.Required}}checked{{end}}>Required</label>
+</fieldset>{{end}}<label class="check">
+<input type="checkbox" name="duration" {{if $s.Config.Duration}}checked{{end}}>Allow optional requested end date</label>
+</details>
+<button {{if $s.Archived}}disabled{{end}}>Save service</button>
+</form>{{if $s.ID}}<section class="panel">
+<h2>Upload artwork</h2>
+<form method="post" enctype="multipart/form-data" action="/admin/artwork/{{$s.ID}}">{{.CSRF}}<label>JPEG, PNG or WebP · 8 MiB / 20 MP maximum<input type="file" name="artwork_file" accept="image/jpeg,image/png,image/webp" required>
+</label>
+<button class="secondary">Upload & use image</button>
+</form>
+</section>
+<section class="panel danger-zone">
+<h2>Archive or delete</h2>
+<p>History is preserved. Services with history or dependent access rules are archived even when deletion is requested.</p>
+<form method="post" action="/admin/services/{{$s.ID}}">{{.CSRF}}<label class="check">
+<input type="checkbox" name="confirm" required>I understand this removes catalog access.</label>
+<button class="secondary" name="action" value="archive" data-confirm="Archive this service?">Archive</button> <button class="danger" name="action" value="delete" data-confirm="Delete this service if it has no history; otherwise archive it?">Delete</button>
+</form>
+</section>{{end}}</div>
+<aside class="preview-sidebar">
+<p class="eyebrow">LIVE CARD PREVIEW</p>
+<article class="service-card">
+<div class="card-cover artwork art-{{$s.Config.Type}}" id="preview-cover">
+<img id="preview-image" {{if $s.Config.Artwork}}src="{{$s.Config.Artwork}}"{{else}}hidden{{end}} alt="">
+<span class="art-orbit">
+</span>
+<span class="art-title" id="preview-art-title">{{$s.Name}}</span>
+</div>
+<div class="card-info">
+<h2 id="preview-name">{{$s.Name}}</h2>
+<p id="preview-summary">{{$s.Config.Summary}}</p>
+</div>
+</article>
+<section class="panel">
+<h3>Audience preview</h3>
+<p class="muted">Save changes first. Preview evaluates publication, category and service audiences.</p>{{if $s.ID}}<div class="actions">
+<a href="/admin/preview/{{$s.ID}}?as=public">Public →</a>
+<a href="/admin/preview/{{$s.ID}}?as=member">Member →</a>
+<a href="/admin/preview/{{$s.ID}}?as=access">With current access →</a>
+</div>{{else}}<p>Save the service to preview visibility.</p>{{end}}</section>
+</aside>
+</div>{{end}}
+{{define "category-admin"}}{{if .Category}}{{$c:=.Category}}<form method="post" action="/admin/categories/{{$c.ID}}" class="panel">{{.CSRF}}<label>Name<input name="name" value="{{$c.Name}}" required maxlength="80">
+</label>
+<label>Audience<select name="audience">{{range audiences}}<option {{if eq $c.Audience .}}selected{{end}}>{{.}}</option>{{end}}</select>
+</label>
+<label>Associated access service<select name="access_service">
+<option value="0">None</option>{{range .Services}}<option value="{{.ID}}" {{if eqi $c.AccessService .ID}}selected{{end}}>{{.Name}}</option>{{end}}</select>
+</label>
+<label>Display order<input type="number" name="position" value="{{$c.Position}}">
+</label>
+<button>Save category</button>
+</form>{{if $c.ID}}<form method="post" action="/admin/categories/{{$c.ID}}" class="panel">{{.CSRF}}<label class="check">
+<input type="checkbox" name="confirm" required>Confirm deletion after reassigning dependent content</label>
+<button class="danger" name="action" value="delete">Delete category</button>
+</form>{{end}}{{else}}<a class="button" href="/admin/categories/new">Add category +</a>
+<div class="admin-list">{{range .Categories}}<a class="admin-row" href="/admin/categories/{{.ID}}">
+<strong>{{.Name}}</strong>
+<span>{{.Audience}}</span>
+<span>Order {{.Position}} →</span>
+</a>{{end}}</div>{{end}}{{end}}
+{{define "link-admin"}}{{if .Link}}{{$l:=.Link}}<form method="post" action="/admin/links/{{$l.ID}}" class="panel">{{.CSRF}}<div class="form-grid">
+<label>Label<input name="label" value="{{$l.Label}}" maxlength="100" required>
+</label>
+<label>URL (leave unset until configured)<input name="url" value="{{$l.URL}}" maxlength="2048">
+</label>
+</div>
+<label>Short description<input name="description" value="{{$l.Description}}" maxlength="300">
+</label>
+<div class="form-grid">
+<label>Placement<select name="placement">{{range list "global" "category" "service"}}<option {{if eq $l.Placement .}}selected{{end}}>{{.}}</option>{{end}}</select>
+</label>
+<label data-parent="category">Parent category<select name="parent_category">
+<option value="0">Choose category</option>{{range .Categories}}<option value="{{.ID}}" {{if and (eq $l.Placement "category") (eqi $l.ParentID .ID)}}selected{{end}}>{{.Name}}</option>{{end}}</select>
+</label>
+<label data-parent="service">Parent service<select name="parent_service">
+<option value="0">Choose service</option>{{range .Services}}<option value="{{.ID}}" {{if and (eq $l.Placement "service") (eqi $l.ParentID .ID)}}selected{{end}}>{{.Name}}</option>{{end}}</select>
+</label>
+</div>
+<p class="muted small-text">Global placement has no parent. Category and service placements use the matching selected parent. Its audience and publication rules still apply.</p>
+<div class="form-grid">
+<label>Audience<select name="audience">{{range audiences}}<option {{if eq $l.Audience .}}selected{{end}}>{{.}}</option>{{end}}</select>
+</label>
+<label>Associated access service<select name="access_service">
+<option value="0">None</option>{{range .Services}}<option value="{{.ID}}" {{if eqi $l.AccessService .ID}}selected{{end}}>{{.Name}}</option>{{end}}</select>
+</label>
+<label>Presentation<select name="style">{{range list "primary" "secondary"}}<option {{if eq $l.Style .}}selected{{end}}>{{.}}</option>{{end}}</select>
+</label>
+<label>Icon<select name="icon">{{range list "link" "game" "play" "book" "status" "download" "community"}}<option {{if eq $l.Icon .}}selected{{end}}>{{.}}</option>{{end}}</select>
+</label>
+</div>
+<p class="notice">Access-restricted links need an explicit associated service, including global and category links. All parent restrictions still apply. A service action with the game icon may use an explicit steam:// URI.</p>
+<label>Display order<input type="number" name="position" value="{{$l.Position}}">
+</label>
+<label class="check">
+<input type="checkbox" name="enabled" {{if $l.Enabled}}checked{{end}}>Enabled (an unset URL stays hidden)</label>
+<label class="check">
+<input type="checkbox" name="new_tab" {{if $l.NewTab}}checked{{end}}>Open in a new tab</label>
+<button>Save link</button>
+</form>{{if $l.ID}}<form method="post" action="/admin/links/{{$l.ID}}" class="panel">{{.CSRF}}<label class="check">
+<input type="checkbox" name="confirm" required>Confirm deletion</label>
+<button class="danger" name="action" value="delete">Delete link</button>
+</form>{{end}}{{else}}<a class="button" href="/admin/links/new">Add contextual link +</a>
+<div class="admin-list">{{range .Links}}<a class="admin-row" href="/admin/links/{{.ID}}">
+<div>
+<strong>{{.Label}}</strong>
+<small>{{.Placement}} / parent {{.ParentID}} · {{.Audience}} · order {{.Position}}</small>
+</div>
+<span class="badge">{{if not .URL}}URL unconfigured{{else if .Enabled}}Enabled{{else}}Disabled{{end}}</span>
+<span>Edit →</span>
+</a>{{else}}<p class="muted">Add global utility links, category resources, and service actions here.</p>{{end}}</div>{{end}}{{end}}
+{{define "member-admin"}}{{if .EditUser}}{{$u:=.EditUser}}<form class="panel" method="post" action="/admin/members/{{$u.ID}}">{{.CSRF}}<h2>{{$u.Username}}</h2>
+<p>{{$u.Email}}</p>
+<label>Role<select name="role">
+<option {{if eq $u.Role "member"}}selected{{end}}>member</option>
+<option {{if eq $u.Role "admin"}}selected{{end}}>admin</option>
+</select>
+</label>
+<label class="check">
+<input type="checkbox" name="enabled" {{if $u.Enabled}}checked{{end}}>Enabled</label>
+<p class="notice">Disabling invalidates portal sessions, revokes portal records, and creates external-removal reminders. External accounts are unchanged. Re-enabling does not restore revoked records.</p>
+<label class="check">
+<input type="checkbox" name="confirm">Confirm permission changes</label>
+<button>Save member</button>
+</form>
+<form class="panel" method="post" action="/admin/reset">{{.CSRF}}<input type="hidden" name="user_id" value="{{$u.ID}}">
+<h2>Administrator-assisted recovery</h2>
+<p>Generate a single-use link for private delivery. Issuing a new link invalidates previous links.</p>
+<button class="secondary">Create password reset link</button>
+</form>{{else}}<details class="panel" open>
+<summary>Invite a friend</summary>
+<form method="post" action="/admin/invite">{{.CSRF}}<div class="form-grid">
+<label>Reserved username<input name="username" required minlength="3" maxlength="40" pattern="[A-Za-z0-9_.-]+">
+</label>
+<label>Contact email (optional)<input type="email" name="email">
+</label>
+</div>
+<label>Recommend services (optional; recommendations never grant access)<select name="recommend" multiple size="4">{{range .Services}}{{if not .Archived}}<option value="{{.ID}}">{{.Name}}</option>{{end}}{{end}}</select>
+</label>
+<p class="muted">Invitations create members without service access. No email is sent; copy the private link after creating it.</p>
+<button>Create invitation link</button>
+</form>
+</details>
+<details class="panel">
+<summary>Outstanding invitation & recovery links</summary>{{range .Rows}}<form method="post" action="/admin/revoke-token" class="inline-form">{{$.CSRF}}<input type="hidden" name="username" value="{{index . 0}}">
+<input type="hidden" name="kind" value="{{index . 1}}">
+<div>
+<strong>{{index . 0}}</strong>
+<p>{{index . 1}} · expires {{index . 2}}</p>
+</div>
+<label class="check">
+<input type="checkbox" name="confirm" required>Confirm revocation</label>
+<button class="secondary">Revoke link</button>
+</form>{{else}}<p class="muted">No outstanding links.</p>{{end}}</details>
+<div class="admin-list">{{range .Users}}<a class="admin-row" href="/admin/members/{{.ID}}">
+<strong>{{.Username}}</strong>
+<span>{{.Role}}</span>
+<span class="badge">{{if .Enabled}}Enabled{{else}}Disabled{{end}}</span>
+<span>Edit →</span>
+</a>{{end}}</div>{{end}}{{end}}
+{{define "access-admin"}}<p class="notice">Access recorded by an administrator; external permissions are managed separately.</p>
+<details class="panel">
+<summary>Record pre-existing access</summary>
+<form method="post" action="/admin/access">{{.CSRF}}<input type="hidden" name="action" value="grant">
+<div class="form-grid">
+<label>Member<select name="user_id" required>{{range .Users}}{{if .Enabled}}<option value="{{.ID}}">{{.Username}}</option>{{end}}{{end}}</select>
+</label>
+<label>Service<select name="service_id" required>{{range .Services}}{{if and .Published (not .Archived)}}<option value="{{.ID}}">{{.Name}}</option>{{end}}{{end}}</select>
+</label>
+</div>
+<label>Non-secret next steps<textarea name="next_steps" required maxlength="6000" rows="3">
+</textarea>
+</label>
+<label>Expiry (optional)<input type="date" name="expires">
+</label>
+<label class="check">
+<input type="checkbox" name="confirm" required>I confirmed external setup and intend to record portal access.</label>
+<button>Record active access</button>
+</form>
+</details>{{range .Accesses}}<section class="panel">
+<div class="row">
+<h3>{{.Username}} · {{.ServiceName}}</h3>
+<span class="badge">{{.State}}</span>
+</div>
+<p class="muted">Recorded {{date .Granted}}{{if .Expires}} · Expiry {{date .Expires}}{{end}}</p>
+<details>
+<summary>Update / re-record access</summary>
+<form method="post" action="/admin/access">{{$.CSRF}}<input type="hidden" name="action" value="grant">
+<input type="hidden" name="user_id" value="{{.UserID}}">
+<input type="hidden" name="service_id" value="{{.ServiceID}}">
+<input type="hidden" name="version" value="{{.Version}}">
+<label>Non-secret next steps<textarea name="next_steps" required maxlength="6000">{{.NextSteps}}</textarea>
+</label>
+<label>New expiry (blank for no expiry)<input type="date" name="expires">
+</label>
+<label class="check">
+<input type="checkbox" name="confirm" required>I confirmed external setup and intend to record active portal access.</label>
+<button class="secondary">Record updated access</button>
+</form>
+</details>{{if eq .State "active"}}<form method="post" action="/admin/access" class="inline-form">{{$.CSRF}}<input type="hidden" name="access_id" value="{{.ID}}">
+<input type="hidden" name="version" value="{{.Version}}">
+<label class="check">
+<input type="checkbox" name="confirm" required>Confirm portal access removal</label>
+<button name="action" value="revoke" class="danger">Revoke</button>
+<button name="action" value="expire" class="secondary">Expire now</button>
+</form>{{end}}</section>{{end}}<details class="panel">
+<summary>Recent access history</summary>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Record</th>
+<th>Actor</th>
+<th>State</th>
+<th>Granted</th>
+<th>Expiry</th>
+<th>Changed</th>
+</tr>
+</thead>
+<tbody>{{range .Rows}}<tr>{{range .}}<td>{{.}}</td>{{end}}</tr>{{end}}</tbody>
+</table>
+</div>
+</details>{{end}}
+{{define "announcement-admin"}}{{if .Announcement}}{{$n:=.Announcement}}<form method="post" action="/admin/announcements/{{$n.ID}}" class="panel">{{.CSRF}}<label>Title<input name="title" value="{{$n.Title}}" required maxlength="120">
+</label>
+<label>Announcement (sanitized Markdown)<textarea name="body" maxlength="4000" rows="5">{{$n.Body}}</textarea>
+</label>
+<div class="form-grid">
+<label>Placement<select name="placement">{{range list "global" "category" "service"}}<option {{if eq $n.Placement .}}selected{{end}}>{{.}}</option>{{end}}</select>
+</label>
+<label data-parent="category">Parent category<select name="parent_category">
+<option value="0">Choose category</option>{{range .Categories}}<option value="{{.ID}}" {{if and (eq $n.Placement "category") (eqi $n.ParentID .ID)}}selected{{end}}>{{.Name}}</option>{{end}}</select>
+</label>
+<label data-parent="service">Parent service<select name="parent_service">
+<option value="0">Choose service</option>{{range .Services}}<option value="{{.ID}}" {{if and (eq $n.Placement "service") (eqi $n.ParentID .ID)}}selected{{end}}>{{.Name}}</option>{{end}}</select>
+</label>
+</div>
+<p class="muted small-text">Global placement has no parent. Category and service placements use the matching selected parent. Its audience and publication rules still apply.</p>
+<div class="form-grid">
+<label>Audience<select name="audience">{{range audiences}}<option {{if eq $n.Audience .}}selected{{end}}>{{.}}</option>{{end}}</select>
+</label>
+<label>Associated access service<select name="access_service">
+<option value="0">None</option>{{range .Services}}<option value="{{.ID}}" {{if eqi $n.AccessService .ID}}selected{{end}}>{{.Name}}</option>{{end}}</select>
+</label>
+<label>Starts (UTC, optional)<input name="starts" value="{{$n.Starts}}" placeholder="2026-09-10T18:00">
+</label>
+<label>Ends (UTC, optional)<input name="ends" value="{{$n.Ends}}" placeholder="2026-09-10T22:00">
+</label>
+</div>
+<label class="check">
+<input type="checkbox" name="enabled" {{if $n.Enabled}}checked{{end}}>Enabled</label>
+<button>Save announcement</button>
+</form>{{if $n.ID}}<form method="post" action="/admin/announcements/{{$n.ID}}" class="panel">{{.CSRF}}<label class="check">
+<input type="checkbox" name="confirm" required>Confirm deletion</label>
+<button class="danger" name="action" value="delete">Delete announcement</button>
+</form>{{end}}{{else}}<a class="button" href="/admin/announcements/new">Add announcement +</a>
+<div class="admin-list">{{range .Announcements}}<a class="admin-row" href="/admin/announcements/{{.ID}}">
+<strong>{{.Title}}</strong>
+<span>{{.Placement}} · {{.Audience}}</span>
+<span>Edit →</span>
+</a>{{end}}</div>{{end}}{{end}}
+{{define "settings-admin"}}<form method="post" action="/admin/settings" class="panel">{{.CSRF}}<label>Dashboard name<input name="name" value="{{.Settings.Name}}" required maxlength="80">
+</label>
+<label>Description<input name="description" value="{{.Settings.Description}}" maxlength="300">
+</label>
+<label>Accent color<input type="color" name="accent" value="{{.Settings.Accent}}">
+</label>
+<label>Local logo path (blank to remove)<input name="logo" value="{{.Settings.Logo}}">
+</label>
+<label class="check">
+<input type="checkbox" name="public" {{if .Settings.Public}}checked{{end}}>Explicitly enable public browsing for public content</label>
+<p class="notice">Published content is not automatically public. Branding and the configured logo appear on the sign-in page.</p>
+<button>Save settings</button>
+</form>
+<form class="panel" method="post" enctype="multipart/form-data" action="/admin/artwork/0">{{.CSRF}}<h2>Upload logo</h2>
+<label>JPEG, PNG or WebP<input type="file" name="artwork_file" accept="image/jpeg,image/png,image/webp" required>
+</label>
+<button class="secondary">Upload logo</button>
+</form>{{end}}

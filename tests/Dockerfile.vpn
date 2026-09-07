@@ -1,0 +1,6 @@
+# Test tools never enter the production gateway image.
+FROM waypoint-gateway:local
+USER 0:0
+RUN apt-get update && apt-get install -y --no-install-recommends python3 && rm -rf /var/lib/apt/lists/*
+USER 0:65532
+ENTRYPOINT ["sleep", "infinity"]

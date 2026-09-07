@@ -1,0 +1,12 @@
+FROM golang:1.26-bookworm AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY internal/vpn ./internal/vpn
+COPY cmd/gateway ./cmd/gateway
+RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /gateway-agent ./cmd/gateway
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends wireguard-tools nftables iproute2 ca-certificates && rm -rf /var/lib/apt/lists/* && mkdir -p /gateway && chmod 700 /gateway
+COPY --from=build /gateway-agent /gateway-agent
+USER 0:65532
+ENTRYPOINT ["/gateway-agent"]
